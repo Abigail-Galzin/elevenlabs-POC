@@ -1,0 +1,40 @@
+{
+  "name": "daily-news-podcaster",
+  "version": "1.0.0",
+  "description": "Automated Daily News Podcaster PoC — generates radio-style podcasts from news headlines using ElevenLabs TTS and STT",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "dev:text": "tsx src/index.ts --topic technology",
+    "dev:voice": "tsx src/index.ts --voice audio/sample-command.wav",
+    "dev:clear-cache": "tsx src/index.ts --clear-cache",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "elevenlabs",
+    "tts",
+    "stt",
+    "podcast",
+    "news",
+    "typescript",
+    "ai"
+  ],
+  "author": "Automated Daily News Podcaster PoC",
+  "license": "MIT",
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.63.0",
+    "dotenv": "^17.4.2",
+    "ffmpeg-static": "^5.0.0",
+    "fluent-ffmpeg": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/fluent-ffmpeg": "^2.0.0",
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.0.0"
+  }
+}
