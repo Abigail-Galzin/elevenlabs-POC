@@ -24,7 +24,7 @@ if (typeof ffmpegStaticPath === "string") {
   ffmpeg.setFfmpegPath(ffmpegStaticPath);
 }
 
-import type { SynthesisResult, StitchResult } from "./types.js";
+import type { SynthesisResult, StitchResult } from "./types/index.js";
 import {
   CACHE_DIR,
   OUTPUT_DIR,
@@ -35,7 +35,7 @@ import {
   STT_MODEL,
   TTS_OUTPUT_FORMAT,
   SEGMENT_SILENCE_SECONDS,
-} from "./types.js";
+} from "./types/index.js";
 
 /**
  * Result of consuming a ReadableStream<Uint8Array> into a Buffer.
