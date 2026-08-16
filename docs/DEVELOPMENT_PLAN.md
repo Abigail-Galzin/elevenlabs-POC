@@ -24,8 +24,9 @@ This document outlines the step-by-step implementation plan for building the Aut
 | # | Task | Details | Est. Time |
 |---|------|---------|-----------|
 | 1.1 | Create `package.json` | `npm init -y`, name: `daily-news-podcaster`, set `"type": "module"`. | 5 min |
-| 1.2 | Install runtime dependencies | `npm install @elevenlabs/elevenlabs-js dotenv ffmpeg-static fluent-ffmpeg` | 5 min |
-| 1.3 | Install dev dependencies | `npm install -D typescript ts-node @types/node @types/fluent-ffmpeg` | 5 min |
+| 1.2 | Install runtime dependencies | `npm install @elevenlabs/elevenlabs-js dotenv ffmpeg-static fluent-ffmpeg node-record-lpcm16-ts` | 5 min |
+| 1.2b | Install system dependency for recording | `brew install sox` (macOS) or `sudo apt install sox` (Linux) — required for `--record` flag | 2 min |
+| 1.3 | Install dev dependencies | `npm install -D typescript tsx @types/node @types/fluent-ffmpeg` | 5 min |
 | 1.4 | Create `tsconfig.json` | Target: `ES2022`, Module: `NodeNext`, ModuleResolution: `NodeNext`, Strict mode, `resolveJsonModule: true`, `esModuleInterop: true`, `skipLibCheck: true`. | 10 min |
 | 1.5 | Create `.env` file | `ELEVENLABS_API_KEY=sk_...` (from `my-playground-voice/.env`). | 2 min |
 | 1.6 | Create `.gitignore` | Ignore `.env`, `node_modules/`, `audio_cache/`, `output/`. | 2 min |
@@ -35,7 +36,7 @@ This document outlines the step-by-step implementation plan for building the Aut
 ### Verification
 
 - `npx tsc --noEmit` passes with zero errors.
-- `npx ts-node src/index.ts --help` displays CLI usage.
+- `npx tsx src/index.ts --help` displays CLI usage.
 
 ### Deliverables
 
@@ -55,7 +56,7 @@ This document outlines the step-by-step implementation plan for building the Aut
 
 | # | Task | Details | Est. Time |
 |---|------|---------|-----------|
-| 2.1 | Create `src/types.ts` | Define all interfaces: `NewsItem`, `ScriptBlock`, `PodcastScript`, `PodcastOutput`, `VoiceCommand`, `NewsProvider`, `SynthesisResult`. Include constants: `MAX_BLOCK_CHARS = 249`, `CREDITS_PER_CHAR = 0.5`, `ELEVENLABS_VOICE_ID`, `TTS_MODEL`, `STT_MODEL`. | 15 min |
+| 2.1 | Create `src/types/index.ts` | Define all interfaces: `NewsItem`, `ScriptBlock`, `PodcastScript`, `PodcastOutput`, `VoiceCommand`, `NewsProvider`, `SynthesisResult`. Include constants: `MAX_BLOCK_CHARS = 249`, `CREDITS_PER_CHAR = 0.5`, `ELEVENLABS_VOICE_ID`, `TTS_MODEL`, `STT_MODEL`. | 15 min |
 | 2.2 | Create `src/audioManager.ts` (skeleton) | Class `AudioManager` with constructor accepting `apiKey: string`. Initialize `ElevenLabsClient`. | 10 min |
 | 2.3 | Implement `generateCacheKey(text: string)` | Use `crypto.createHash('md5').update(text).digest('hex')`. | 5 min |
 | 2.4 | Implement `getCachedAudioPath(cacheKey: string)` | Return `path.join(CACHE_DIR, cacheKey + '.mp3')`. | 3 min |
@@ -75,7 +76,7 @@ This document outlines the step-by-step implementation plan for building the Aut
 
 ### Deliverables
 
-- `src/types.ts` (full data contracts)
+- `src/types/index.ts` (full data contracts)
 - `src/audioManager.ts` (complete `AudioManager` class)
 
 ---
@@ -88,7 +89,7 @@ This document outlines the step-by-step implementation plan for building the Aut
 
 | # | Task | Details | Est. Time |
 |---|------|---------|-----------|
-| 3.1 | Implement `VoiceCommandParser` class | Takes transcribed text from `scribe_v1`. Extracts a topic keyword from a predefined list (`technology`, `sports`, `politics`, `business`, `science`, `entertainment`, `health`). Uses regex matching on the transcript. | 15 min |
+| 3.1 | Implement `VoiceCommandParser` class | Takes transcribed text from `scribe_v1`. Extracts a topic keyword from a predefined list (`technology`, `sports`, `politics`, `business`, `science`, `entertainment`, `health`). Uses regex matching on the transcript. Located at `src/utils/voiceCommandParser.ts`. | 15 min |
 | 3.2 | Implement `parseVoiceCommand(audioPath: string)` | Convenience method: calls `transcribeAudio` then `VoiceCommandParser`. Returns `VoiceCommand`. | 5 min |
 | 3.3 | Handle empty/unrecognized topics | If no topic is detected, default to empty string (general news). Log a warning. | 5 min |
 | 3.4 | Create sample audio file for testing | Generate a short WAV file using `ffmpeg` for testing the STT pipeline without a real microphone. | 10 min |
@@ -118,7 +119,7 @@ This document outlines the step-by-step implementation plan for building the Aut
 | 4.2 | Implement `ScriptBuilder` class | Takes `NewsItem[]`. Builds `PodcastScript` with Intro, 1-3 News blocks, Outro. Enforces <250 char limit per block with truncation. Calculates `estimatedCredits` and `totalChars`. | 25 min |
 | 4.3 | Implement `NewsPodcaster` class (orchestrator) | Main pipeline: `generatePodcast(options)`. Steps: 1) Create `AudioManager`, 2) Fetch news (via `MockNewsProvider`), 3) Build script (via `ScriptBuilder`), 4) Synthesize each block (via `AudioManager`), 5) Stitch segments, 6) Save output, 7) Return `PodcastOutput`. | 25 min |
 | 4.4 | Implement `NewsPodcaster.processVoiceRequest()` | Pipeline variant: 1) Transcribe audio (via `AudioManager.transcribeAudio`), 2) Parse voice command (via `VoiceCommandParser`), 3) Fetch news filtered by topic, 4) Generate podcast, 5) Return `PodcastOutput`. | 15 min |
-| 4.5 | Implement CLI entry point in `src/index.ts` | Parse command-line arguments: `--topic <topic>`, `--voice <audio-file>`, `--clear-cache`, `--help`. Dispatch to the appropriate method on `NewsPodcaster`. | 20 min |
+| 4.5 | Implement CLI entry point in `src/index.ts` | Parse command-line arguments: `--topic <topic>`, `--voice <audio-file>`, `--record`/`-r` (live recording), `--clear-cache`, `--help`. Dispatch to the appropriate method on `NewsPodcaster`. | 20 min |
 | 4.6 | Add structured logging | Use `console.log` with timestamp prefixes for: `INFO`, `WARNING`, `ERROR`. Log each phase's progress, cache hits/misses, and credit consumption. | 10 min |
 | 4.7 | Add error handling | Catch and log ElevenLabs API errors, file system errors, and invalid input. Exit with non-zero code on failure. | 10 min |
 
@@ -129,19 +130,23 @@ This document outlines the step-by-step implementation plan for building the Aut
 npx ts-node src/index.ts
 
 # Generate a podcast filtered by topic
-npx ts-node src/index.ts --topic technology
+npx tsx src/index.ts --topic technology
 
 # Generate a podcast from a voice command
-npx ts-node src/index.ts --voice /path/to/recording.wav
+npx tsx src/index.ts --voice /path/to/recording.wav
+
+# Record your voice live from the microphone
+npx tsx src/index.ts --record
 
 # Clear the audio cache
-npx ts-node src/index.ts --clear-cache
+npx tsx src/index.ts --clear-cache
 ```
 
 ### Verification
 
-- `npx ts-node src/index.ts` generates `output/podcast_{timestamp}.mp3`.
-- `npx ts-node src/index.ts --topic technology` filters news to technology items.
+- `npx tsx src/index.ts` generates `output/podcast_{timestamp}.mp3`.
+- `npx tsx src/index.ts --topic technology` filters news to technology items.
+- `npx tsx src/index.ts --record` records live from the microphone and transcribes via scribe_v1.
 - Running the same command twice shows cache hit logging and 0 credits consumed.
 - `--clear-cache` removes all files from `audio_cache/`.
 - `tsc --noEmit` passes with zero errors.
@@ -191,7 +196,7 @@ Milestone 4: End-to-End Pipeline
   ├── 4.3-4.4 NewsPodcaster (orchestrator)
   ├── 4.5 CLI entry point
   ├── 4.6-4.7 Logging + error handling
-  └── E2E verification: npx ts-node src/index.ts
+  └── E2E verification: npx tsx src/index.ts
 ```
 
 ---
@@ -202,6 +207,8 @@ Milestone 4: End-to-End Pipeline
 |------|-----------|--------|------------|
 | ElevenLabs API rate limits | Medium | High | Cache aggressively; each unique text is synthesized only once. |
 | ffmpeg not found on system | Low | High | Use `ffmpeg-static` which bundles the binary. |
+| sox not found on system | Low | Medium | Required for `--record` live microphone recording. Install via `brew install sox` (macOS) or `sudo apt install sox` (Linux). |
+| No audio input device | Low | Medium | The `--record` flow performs a pre-flight check and provides actionable error if no microphone is detected. |
 | STT transcription accuracy | Medium | Medium | Use `scribe_v1` (highest accuracy); provide `--topic` as CLI fallback. |
 | Audio stitching artifacts | Low | Medium | Use 0.5s silence between segments to mask transitions. |
 | Cache directory permissions | Low | Low | Create directory with `mkdirSync({ recursive: true })`. |
@@ -217,14 +224,15 @@ Since this is a PoC, testing will be lightweight:
 2. **Cache determinism test:** Run `synthesizeSpeech("test")` twice, verify the second call returns the cached file (0 credits).
 3. **Character limit test:** Pass a 300-character string to `ScriptBuilder`, verify it is truncated to <250 chars.
 4. **End-to-end smoke test:** Run `npx ts-node src/index.ts` and verify an MP3 file is produced in `output/`.
-5. **STT smoke test:** Run `npx ts-node src/index.ts --voice sample.wav` and verify topic extraction.
+5. **STT smoke test:** Run `npx tsx src/index.ts --voice sample.wav` and verify topic extraction.
+6. **Live recording smoke test:** Run `npx tsx src/index.ts --record`, speak a topic, press ENTER, and verify transcription + podcast generation. (Requires sox and a connected microphone.)
 
 ---
 
 ## Next Steps (Post-PoC)
 
 - Replace `MockNewsProvider` with a real RSS/NewsAPI integration.
-- Add support for recording live audio via microphone (`navigator.mediaDevices` or a Node.js mic library).
+- ~~Add support for recording live audio via microphone~~ ✅ (Completed — `src/utils/recorder.ts` with `--record` flag)
 - Add configurable voice selection (allow users to pick from available ElevenLabs voices).
 - Implement scheduled daily execution (cron job / CI workflow).
 - Add unit tests with Jest.

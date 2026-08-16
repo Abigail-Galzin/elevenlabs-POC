@@ -28,6 +28,7 @@ The tool is designed as a **Proof of Concept (PoC)** with the following primary 
 | UC-01 | **Daily Automated Podcast Generation** | Fetch the top 3 news headlines from a news source, build a radio-style script (Intro → 3 News Items → Outro), synthesize each section into speech via `eleven_flash_v2_5`, stitch the segments together with inter-segment silence, and save a single MP3 podcast file to `output/`. |
 | UC-02 | **Voice-Requested Topic Filtering** | A user speaks a topic (e.g., "Give me technology news today"). The system captures the audio, transcribes it via `scribe_v1`, extracts the topic keyword, filters news items by topic, and generates a targeted podcast containing only matching articles. |
 | UC-03 | **Cached Audio Reuse** | When the same text block (e.g., a recurring intro) is requested across multiple runs, the system serves the audio from local disk cache (`audio_cache/`), consuming zero API credits. Cache entries are keyed by the MD5 hash of the input text. |
+| UC-04 | **Live Microphone Recording** | The user records a voice command directly from the terminal microphone using the `--record` flag. Audio is captured via sox (`rec` on macOS, `arecord` on Linux), saved to a temporary WAV file, transcribed via `scribe_v1`, and the extracted topic filters the news feed. The temp file is deleted after transcription. |
 
 ---
 
@@ -91,11 +92,13 @@ The system is organized into three layers, each with a distinct responsibility. 
   - The **topic keyword** (e.g., "technology", "sports", "politics").
   - An optional **action** (default: "generate podcast about <topic>").
 - **`TextCommandParser`:** For non-voice operation, accepts a direct string argument (e.g., `--topic "technology"`).
+- **`Recorder` (`src/utils/recorder.ts`):** Captures live microphone audio via sox (`rec` on macOS, `arecord` on Linux). Saves to a temporary WAV file and returns the path. The `sox`/`rec` binary must be installed system-wide. On macOS, System Settings → Privacy & Security → Microphone permission must be granted to the terminal.
 
 **Data Flow:**
-1. Audio file path → `SpeechToTextClient` → Transcribed text string.
-2. Transcribed text → `VoiceCommandParser` → `VoiceCommand` object (transcript, topic, confidence).
-3. `VoiceCommand` → Curation Layer.
+1. Live microphone input → `Recorder` → temporary WAV file path.
+2. WAV file path → `SpeechToTextClient` → Transcribed text string.
+3. Transcribed text → `VoiceCommandParser` → `VoiceCommand` object (transcript, topic, confidence).
+4. `VoiceCommand` → Curation Layer.
 
 ### 2.2 Curation Layer
 
@@ -144,7 +147,7 @@ The system is organized into three layers, each with a distinct responsibility. 
 
 ## 3. Core TypeScript Data Contracts
 
-All contracts are defined in `src/types.ts` with strict typing (no `any`).
+All contracts are defined in `src/types/index.ts` with strict typing (no `any`).
 
 ### 3.1 `NewsItem`
 
@@ -388,7 +391,6 @@ This demonstrates a **100% credit savings** on repeat runs with identical conten
 The following are explicitly out of scope for this PoC:
 
 - **Real news API integration**: A live RSS or news API client. The PoC uses a mock provider.
-- **Audio recording**: Capturing live microphone input. The PoC accepts an audio file path for STT.
 - **Voice selection UI**: Dynamic voice selection. The PoC hardcodes the "George" voice ID.
 - **Streaming synthesis**: Real-time TTS streaming. The PoC uses synchronous `convert` (blocking API call).
 - **Multi-language news**: The PoC targets English-language news only.
@@ -415,42 +417,58 @@ The following are explicitly out of scope for this PoC:
 | `@elevenlabs/elevenlabs-js` | ^2.63.0 | Official ElevenLabs SDK for TTS and STT |
 | `dotenv` | ^17.4.2 | Environment variable loading |
 | `typescript` | ^5.0.0 | TypeScript compiler |
-| `ts-node` | ^10.9.0 | TypeScript execution without pre-compilation |
+| `tsx` | ^4.23.0 | TypeScript execution without pre-compilation |
 | `@types/node` | ^20.0.0 | Node.js type definitions |
 | `ffmpeg-static` | ^5.0.0 | Bundled ffmpeg binary for audio stitching |
 | `fluent-ffmpeg` | ^2.1.0 | FFmpeg wrapper for audio processing |
 | `@types/fluent-ffmpeg` | ^2.0.0 | TypeScript types for fluent-ffmpeg |
+| `node-record-lpcm16-ts` | ^1.0.0 | TypeScript microphone recording library |
+| `node-record-lpcm16` | ^1.0.1 | Underlying recording library (sox/arecord/rec backend) |
 
 ### 7.2 Node.js Built-in Modules
 
-| Module | Usage |
-|--------|-------|
 | `crypto` | MD5 hash generation for cache keys |
-| `fs` | File system operations (read/write/check cache) |
+| `fs` | File system operations (read/write/check cache, temp file cleanup) |
 | `path` | Cross-platform path construction |
 | `os` | Temporary directory access |
 | `stream` | Stream consumption for audio buffers |
+| `child_process` | Spawning `system_profiler` for audio device detection |
+| `util` | `promisify` wrapper for async exec calls |
+| `readline` | Capturing ENTER keypress to stop live recording |
 
 ---
 
 ## 8. File Structure
 
 ```
-elevenlabs/
+elevenlabs-POC/
 ├── docs/
-│   ├── SDD.md                    ← This document
-│   └── DEVELOPMENT_PLAN.md       ← Implementation roadmap
+│   ├── SDD.md                      ← This document
+│   └── DEVELOPMENT_PLAN.md         ← Implementation roadmap
 ├── src/
-│   ├── types.ts                  ← All TypeScript interfaces and constants
-│   ├── audioManager.ts           ← ElevenLabs TTS/STT, MD5 caching, ffmpeg stitching
-│   └── index.ts                  ← Main CLI entry point and pipeline orchestration
-├── audio_cache/                  ← MD5-keyed MP3 cache directory
-├── output/                       ← Generated podcast MP3 files
-├── .env                          ← Environment variables (API key)
-├── .gitignore                    ← Ignores .env, node_modules, audio_cache/
-├── package.json                  ← Project manifest and scripts
-├── tsconfig.json                 ← TypeScript compiler configuration (NodeNext)
-└── README.md                     ← Project documentation
+│   ├── audioManager.ts             ← ElevenLabs TTS/STT, MD5 caching, ffmpeg stitching
+│   ├── config/
+│   │   └── env.ts                  ← Environment variables and constants
+│   ├── core/
+│   │   ├── newsPodcaster.ts        ← Podcast pipeline orchestration
+│   │   └── scriptBuilder.ts        ← Script building (intro, news, outro)
+│   ├── mocks/
+│   │   └── MockNewsProvider.ts     ← Mock news data for PoC
+│   ├── types/
+│   │   └── index.ts                ← TypeScript interfaces and constants
+│   ├── utils/
+│   │   ├── functions.ts            ← Logging and utility helpers
+│   │   ├── recorder.ts             ← Interactive live microphone recording
+│   │   └── voiceCommandParser.ts   ← Voice command topic extraction
+│   └── index.ts                    ← Main CLI entry point and argument parsing
+├── audio_cache/                    ← MD5-keyed MP3 cache directory
+├── output/                         ← Generated podcast MP3 files
+├── temp/                           ← Temporary recording files (auto-cleaned)
+├── .env                            ← Environment variables (API key)
+├── .gitignore                      ← Ignores .env, node_modules, audio_cache/
+├── package.json                    ← Project manifest and scripts
+├── tsconfig.json                   ← TypeScript compiler configuration (NodeNext)
+└── README.md                       ← Project documentation
 ```
 
 ---
@@ -462,7 +480,7 @@ elevenlabs/
 | A-01 | The `eleven_flash_v2_5` model is available in the user's ElevenLabs account. | Confirmed available in SDK v2.63.0; requires a paid account. |
 | A-02 | The voice ID `JBFqnCBsd6RMkjVDRZzb` ("George") is accessible. | Available in the playground project's voice library. |
 | A-03 | News mock data is sufficient for PoC validation. | The user specified a PoC; real news integration is a future enhancement (Non-Goal 1.1). |
-| A-04 | Audio input for STT is provided as a file path. | Recording live audio from a microphone is out of scope (Non-Goal 1.2). |
+| A-04 | Audio input for STT is provided as a file path. Live microphone recording is supported via the `--record` flag, which captures audio to a temporary WAV file and feeds it into the same STT pipeline. | The PoC supports both pre-recorded audio files (`--voice`) and live recording (`--record`). |
 | A-05 | Single-threaded execution is sufficient. | A daily podcast is generated once; no concurrency requirements. |
 
 ---
@@ -472,7 +490,7 @@ elevenlabs/
 The PoC is considered complete when:
 
 1. ✅ `npm run dev` executes without errors and generates at least one MP3 file in `output/`.
-2. ✅ `npm run transcript` accepts an audio file path, transcribes it via `scribe_v1`, filters news by the extracted topic, and generates a podcast.
+2. ✅ `npm run dev -- --voice <audio_path>` accepts an audio file path, transcribes it via `scribe_v1`, filters news by the extracted topic, and generates a podcast. `npm run dev -- --record` or `npm run dev:record` records live from the terminal microphone and follows the same transcription pipeline.
 3. ✅ The intro/outro text blocks produce identical MD5 hashes across runs, proving the cache works.
 4. ✅ Each script block is strictly < 250 characters (verified by runtime assertion).
 5. ✅ The total credits estimated by the script matches the SDK's actual consumption within 2%.

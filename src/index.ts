@@ -13,10 +13,11 @@
  */
 
 import "dotenv/config";
-import { existsSync } from "node:fs";
+import { existsSync, unlinkSync } from "node:fs";
 import { AudioManager } from "./audioManager.js";
-import { NewsPodcaster } from "./core/newsPodcaster.js"
+import { NewsPodcaster } from "./core/newsPodcaster.js";
 import { log } from "./utils/functions.js";
+import { recordVoiceCommand } from "./utils/recorder.js";
 
 /**
  * Print CLI usage information.
@@ -25,19 +26,22 @@ function printHelp(): void {
   console.log(`
 Usage: npm run dev -- [options]
 
-Options:
-  --topic <topic>    Filter news by topic
-                     (technology, sports, politics, business,
-                      science, entertainment, health)
-  --voice <path>     Transcribe a voice command from an audio file
-                     and generate a podcast for the extracted topic
-  --clear-cache      Clear all cached audio files from audio_cache/
-  --help, -h         Show this help message
+  Options:
+    --topic <topic>    Filter news by topic
+                       (technology, sports, politics, business,
+                        science, entertainment, health)
+    --voice <path>     Transcribe a voice command from an audio file
+                       and generate a podcast for the extracted topic
+    --record, -r       Record your voice live from the microphone,
+                       transcribe it, and generate a podcast
+    --clear-cache      Clear all cached audio files from audio_cache/
+    --help, -h         Show this help message
 
-Examples:
-  npm run dev -- --topic technology
-  npm run dev -- --voice audio/sample-command.wav
-  npm run dev -- --clear-cache
+  Examples:
+    npm run dev -- --topic technology
+    npm run dev -- --voice audio/sample-command.wav
+    npm run dev -- --record
+    npm run dev -- --clear-cache
 `);
 }
 
@@ -49,6 +53,7 @@ async function main(): Promise<void> {
 
   const helpRequested = args.includes("--help") || args.includes("-h");
   const clearCache = args.includes("--clear-cache");
+  const recordRequested = args.includes("--record") || args.includes("-r");
 
   const topicIndex = args.indexOf("--topic");
   const topic =
@@ -89,6 +94,19 @@ async function main(): Promise<void> {
         process.exit(1);
       }
       await podcaster.processVoiceRequest(voicePath);
+    } else if (recordRequested) {
+      const tempWavPath = await recordVoiceCommand();
+      try {
+        await podcaster.processVoiceRequest(tempWavPath);
+      } finally {
+        // Clean up the temporary WAV file after transcription.
+        try {
+          unlinkSync(tempWavPath);
+          log("INFO", "Temporary recording file cleaned up.");
+        } catch {
+          // Non-fatal: temp file in temp dir may be cleaned up by OS.
+        }
+      }
     } else {
       await podcaster.generatePodcast({
         topic: topic,

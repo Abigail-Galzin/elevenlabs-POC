@@ -1,13 +1,13 @@
 {
+  "$schema": "https://opencode.ai/config.json",
   "agent": {
-    "deny": [
-      "Read(**/node_modules/**)",
-      "Execute(grep -r * node_modules)"
-    ],
-    "exclude": [
-      "**/node_modules/**",
-      "**/.opencode/node_modules/**"
-    ]
+    "deny": {
+       "read": ["**/node_modules/**"],
+       "execute": ["grep -r * node_modules"]    
+    },
+    "exclude": {
+      "globs": ["**/node_modules/**", "**/.opencode/node_modules/**"]
+    }
   }
 }
 
