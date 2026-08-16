@@ -120,7 +120,7 @@ async function main(): Promise<void> {
 }
 
 // Execute main() only when this file is run directly (not imported).
-const isMainModule = process.argv[1]?.endsWith("index.ts");
+const isMainModule = process.argv[1]?.endsWith("cli.ts");
 if (isMainModule) {
   main().catch((err: unknown) => {
     log("ERROR", `Fatal error: ${err instanceof Error ? err.message : String(err)}`);

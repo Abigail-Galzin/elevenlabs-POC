@@ -2,16 +2,16 @@
 
 ## Automated Daily News Podcaster — Proof of Concept
 
-**Plan Version:** 1.0  
-**Date:** 2026-08-12  
+**Plan Version:** 2.0  
+**Date:** 2026-08-16  
 **Author:** Senior Software Architect  
-**Dependency:** Based on [SDD.md](./SDD.md)  
+**Dependency:** Based on [SDD.md](./SDD.md) v2.0  
 
 ---
 
 ## Overview
 
-This document outlines the step-by-step implementation plan for building the Automated Daily News Podcaster PoC. The plan is organized into 4 milestones, each delivering a testable increment of functionality.
+This document outlines the step-by-step implementation plan for building the Automated Daily News Podcaster PoC. The plan is organized into 5 milestones, each delivering a testable increment of functionality.
 
 ---
 
@@ -56,7 +56,7 @@ This document outlines the step-by-step implementation plan for building the Aut
 
 | # | Task | Details | Est. Time |
 |---|------|---------|-----------|
-| 2.1 | Create `src/types/index.ts` | Define all interfaces: `NewsItem`, `ScriptBlock`, `PodcastScript`, `PodcastOutput`, `VoiceCommand`, `NewsProvider`, `SynthesisResult`. Include constants: `MAX_BLOCK_CHARS = 249`, `CREDITS_PER_CHAR = 0.5`, `ELEVENLABS_VOICE_ID`, `TTS_MODEL`, `STT_MODEL`. | 15 min |
+| 2.1 | Create `src/types/index.ts` | Define all interfaces: `NewsItem`, `ScriptBlock`, `PodcastScript`, `PodcastOutput`, `VoiceCommand`, `NewsProvider`, `SynthesisResult`. Include constants: `MAX_BLOCK_CHARS = 249`, `CREDITS_PER_CHAR = 0.5`, `ELEVENLABS_VOICE_ID`, `TTS_MODEL`, `STT_MODEL`, `TTS_OUTPUT_FORMAT`, `SEGMENT_SILENCE_SECONDS`. | 15 min |
 | 2.2 | Create `src/audioManager.ts` (skeleton) | Class `AudioManager` with constructor accepting `apiKey: string`. Initialize `ElevenLabsClient`. | 10 min |
 | 2.3 | Implement `generateCacheKey(text: string)` | Use `crypto.createHash('md5').update(text).digest('hex')`. | 5 min |
 | 2.4 | Implement `getCachedAudioPath(cacheKey: string)` | Return `path.join(CACHE_DIR, cacheKey + '.mp3')`. | 3 min |
@@ -119,7 +119,7 @@ This document outlines the step-by-step implementation plan for building the Aut
 | 4.2 | Implement `ScriptBuilder` class | Takes `NewsItem[]`. Builds `PodcastScript` with Intro, 1-3 News blocks, Outro. Enforces <250 char limit per block with truncation. Calculates `estimatedCredits` and `totalChars`. | 25 min |
 | 4.3 | Implement `NewsPodcaster` class (orchestrator) | Main pipeline: `generatePodcast(options)`. Steps: 1) Create `AudioManager`, 2) Fetch news (via `MockNewsProvider`), 3) Build script (via `ScriptBuilder`), 4) Synthesize each block (via `AudioManager`), 5) Stitch segments, 6) Save output, 7) Return `PodcastOutput`. | 25 min |
 | 4.4 | Implement `NewsPodcaster.processVoiceRequest()` | Pipeline variant: 1) Transcribe audio (via `AudioManager.transcribeAudio`), 2) Parse voice command (via `VoiceCommandParser`), 3) Fetch news filtered by topic, 4) Generate podcast, 5) Return `PodcastOutput`. | 15 min |
-| 4.5 | Implement CLI entry point in `src/index.ts` | Parse command-line arguments: `--topic <topic>`, `--voice <audio-file>`, `--record`/`-r` (live recording), `--clear-cache`, `--help`. Dispatch to the appropriate method on `NewsPodcaster`. | 20 min |
+| 4.5 | Implement CLI entry point in `src/index.ts` | Parse command-line arguments: `--topic <topic>`, `--voice <path>`, `--record`/`-r` (live recording), `--clear-cache`, `--help`. Dispatch to the appropriate method on `NewsPodcaster`. | 20 min |
 | 4.6 | Add structured logging | Use `console.log` with timestamp prefixes for: `INFO`, `WARNING`, `ERROR`. Log each phase's progress, cache hits/misses, and credit consumption. | 10 min |
 | 4.7 | Add error handling | Catch and log ElevenLabs API errors, file system errors, and invalid input. Exit with non-zero code on failure. | 10 min |
 
@@ -133,9 +133,9 @@ npx ts-node src/index.ts
 npx tsx src/index.ts --topic technology
 
 # Generate a podcast from a voice command
-npx tsx src/index.ts --voice /path/to/recording.wav
+npx tsx src/index.ts --voice audio/sample-command.wav
 
-# Record your voice live from the microphone
+# Record your voice live from the terminal microphone
 npx tsx src/index.ts --record
 
 # Clear the audio cache
@@ -156,6 +156,57 @@ npx tsx src/index.ts --clear-cache
 - `src/index.ts` (complete CLI + orchestration)
 - End-to-end pipeline working
 - Sample output podcast file
+
+---
+
+## Milestone 5: Web GUI & Backend API Routes
+
+**Goal:** Transition the CLI PoC into a React web application with an Express HTTP backend, preserving all existing service-layer logic and introducing a browser-native `AudioRecorder` component that replaces the sox-based CLI recorder.
+
+### Tasks
+
+| # | Task | Details | Est. Time |
+|---|------|---------|-----------|
+| 5.1 | Restructure monorepo layout | Move `src/` → `backend/src/`. Rename `src/index.ts` → `backend/src/cli.ts` (deprecated). Create `frontend/`, `backend/`, and `shared/` directories. Create root workspace `package.json` with `workspaces` field. | 20 min |
+| 5.2 | Extract shared types | Move `src/types/index.ts` → `shared/types/index.ts`. Set up Vite path alias (`@shared`) in `frontend/vite.config.ts` and tsconfig path mapping in both frontend and backend. | 10 min |
+| 5.3 | Create backend Express server | Create `backend/src/server.ts`. Configure CORS (allow Vite dev server origin), body parser, and multer for multipart uploads. Instantiate `NewsPodcaster` at startup. | 15 min |
+| 5.4 | Implement `POST /api/transcribe` endpoint | Accept multipart audio Blob via multer. Save to `temp/`. Call `AudioManager.transcribeAudio()`. Call `VoiceCommandParser.parse()`. Delete temp file. Return `{ transcript, voiceCommand }`. | 20 min |
+| 5.5 | Implement `POST /api/generate-podcast` endpoint | Accept JSON `{ topic, source }`. Call `NewsPodcaster.generatePodcast({ topic, source })`. Derive `audioUrl` from `outputPath` filename. Return augmented `PodcastOutput` with `audioUrl`, `estimatedCredits`, `totalChars`. | 15 min |
+| 5.6 | Implement `POST /api/cache/clear` endpoint | Call `AudioManager.clearCache()`. Return `{ success, message }`. | 5 min |
+| 5.7 | Implement `GET /api/output/:filename` endpoint | Serve MP3 file from `output/` directory. Return 404 if not found. | 10 min |
+| 5.8 | Create frontend React app scaffolding | `npm create vite@latest frontend -- --template react-ts`. Install Tailwind CSS. Configure tsconfig and vite aliases for `@shared`. | 15 min |
+| 5.9 | Implement `AudioRecorder` component | Use browser `MediaRecorder` API. Request `getUserMedia` microphone permission. Capture `audio/webm;codec=opus` Blobs. Emit `onRecordingComplete(blob)` callback. Show recording timer. | 30 min |
+| 5.10 | Implement `TopicInput` component | Dropdown/autocomplete listing 7 topics + "General News". Emit `onTopicChange(topic)` callback. Default to empty string. | 15 min |
+| 5.11 | Implement `StatusTracker` component | Display live pipeline status with 5 states: `Recording → Transcribing → Fetching News → Synthesizing → Ready`. Each state has an icon and label. Accept `status` prop and update via parent state. | 20 min |
+| 5.12 | Implement `PodcastPlayer` component | HTML5 `<audio>` element with native controls. Accept `audioUrl` prop. Display episode metadata (duration, credits, cache stats) received from `PodcastOutput`. | 15 min |
+| 5.13 | Implement `App` component + API client | Orchestrate: TopicInput → AudioRecorder → StatusTracker → PodcastPlayer. Create `frontend/src/services/api.ts` with `transcribeAudio()`, `generatePodcast()`, `clearCache()` functions. Manage state transitions for StatusTracker. | 30 min |
+| 5.14 | Add backend `recorder.ts` isolation guard | Verify `recorder.ts` is never imported into frontend. Add a comment at the top of `backend/src/utils/recorder.ts` documenting it is backend-only. Add an import-boundary check to the verification checklist. | 5 min |
+| 5.15 | Add "Clear Cache" button to web UI | Wire up to `POST /api/cache/clear`. Show success/failure toast. | 10 min |
+
+### Verification
+
+- `npx tsc --noEmit` passes in both `frontend/` and `backend/` with zero errors.
+- `npm run dev:server` starts the Express server on port 4000; `curl http://localhost:4000/api/cache/clear` returns `{ success: true }`.
+- `npm run dev` starts the Vite dev server on port 5173; the React app loads in the browser.
+- `POST /api/generate-podcast` with `{ "topic": "technology", "source": "text" }` returns a `PodcastOutput` with `audioUrl` and `GET /api/output/{filename}` serves the MP3.
+- Clicking "Record" in `AudioRecorder` requests microphone permission, records audio, and sends it to `POST /api/transcribe` which returns a recognized topic.
+- `StatusTracker` shows the full state sequence (`Recording → Transcribing → Fetching News → Synthesizing → Ready`) during a voice-driven generation.
+- `PodcastPlayer` plays the generated MP3 in-browser.
+- `grep -r "recorder" frontend/src/` returns zero matches (recorder.ts is backend-only).
+- The deprecated CLI (`npx tsx src/cli.ts --topic technology`) still works and produces identical output.
+- Running the same topic twice on the web shows cache hits and 0 credits consumed.
+
+### Deliverables
+
+- `backend/` — Express server with 4 HTTP endpoints (`/api/transcribe`, `/api/generate-podcast`, `/api/cache/clear`, `/api/output/:filename`)
+- `backend/src/server.ts` — HTTP server entry point
+- `backend/src/cli.ts` — Deprecated CLI entry point (archived)
+- `frontend/` — React + Vite + TypeScript + Tailwind CSS web application
+- `frontend/src/components/` — `AudioRecorder`, `TopicInput`, `StatusTracker`, `PodcastPlayer`
+- `frontend/src/services/api.ts` — API client
+- `frontend/src/App.tsx` — Root component with state management
+- `shared/types/index.ts` — Canonical data contracts shared between frontend and backend
+- `HISTORY.md` — Project evolution documentation
 
 ---
 
@@ -197,6 +248,26 @@ Milestone 4: End-to-End Pipeline
   ├── 4.5 CLI entry point
   ├── 4.6-4.7 Logging + error handling
   └── E2E verification: npx tsx src/index.ts
+  │
+  ▼
+Milestone 5: Web GUI & Backend API Routes
+  │
+  ├── 5.1 Monorepo restructure (backend/ + frontend/ + shared/)
+  ├── 5.2 Shared types extraction (@shared alias)
+  ├── 5.3 Express server scaffold (CORS + multer)
+  ├── 5.4 POST /api/transcribe (STT + voice command parsing)
+  ├── 5.5 POST /api/generate-podcast (full pipeline via API)
+  ├── 5.6 POST /api/cache/clear
+  ├── 5.7 GET /api/output/:filename (MP3 serving)
+  ├── 5.8 Frontend React + Vite + Tailwind scaffolding
+  ├── 5.9 AudioRecorder component (MediaRecorder API)
+  ├── 5.10 TopicInput component
+  ├── 5.11 StatusTracker component
+  ├── 5.12 PodcastPlayer component
+  ├── 5.13 App component + API client
+  ├── 5.14 recorder.ts backend-only isolation guard
+  ├── 5.15 Clear Cache button in web UI
+  └── Verification: Web app end-to-end with voice recording + playback
 ```
 
 ---
@@ -207,12 +278,18 @@ Milestone 4: End-to-End Pipeline
 |------|-----------|--------|------------|
 | ElevenLabs API rate limits | Medium | High | Cache aggressively; each unique text is synthesized only once. |
 | ffmpeg not found on system | Low | High | Use `ffmpeg-static` which bundles the binary. |
-| sox not found on system | Low | Medium | Required for `--record` live microphone recording. Install via `brew install sox` (macOS) or `sudo apt install sox` (Linux). |
-| No audio input device | Low | Medium | The `--record` flow performs a pre-flight check and provides actionable error if no microphone is detected. |
-| STT transcription accuracy | Medium | Medium | Use `scribe_v1` (highest accuracy); provide `--topic` as CLI fallback. |
+| sox not found on system | Low | Medium | Required for `--record` flag (CLI legacy). Install via `brew install sox` (macOS) or `sudo apt install sox` (Linux). The web app does not require sox. |
+| No audio input device | Low | Medium | The `--record` flow performs a pre-flight check and provides actionable error if no microphone is detected. The web app checks `MediaRecorder.isTypeSupported`. |
+| STT transcription accuracy | Medium | Medium | Use `scribe_v1` (highest accuracy); provide topic selection as fallback. |
 | Audio stitching artifacts | Low | Medium | Use 0.5s silence between segments to mask transitions. |
 | Cache directory permissions | Low | Low | Create directory with `mkdirSync({ recursive: true })`. |
 | TypeScript strict mode errors | Medium | Low | Use `skipLibCheck: true` and explicit type annotations everywhere. |
+| **CORS misconfiguration** | Medium | High | Configure CORS middleware to allow only the Vite dev server origin (`http://localhost:5173`) in development; same-origin in production. |
+| **Browser microphone permissions denied** | Medium | Medium | The `AudioRecorder` component handles `NotAllowedError` and `NotFoundError` with user-facing error messages. |
+| **MediaRecorder API unsupported in older browsers** | Low | Medium | Add a browser-compatibility check; gracefully degrade with a link to use the CLI `--voice` flag instead. |
+| **Audio upload size exceeds server limits** | Low | Medium | Set `multer` limits (`limits: { fileSize: 10 * 1024 * 1024 }` for 10MB max). Recordings are short (<30 seconds). |
+| **API key accidentally exposed in frontend bundle** | High | Critical | The API key is loaded from `.env` only in `backend/src/config/env.ts`. A grep check verifies no `@elevenlabs/elevenlabs-js` import exists in `frontend/src/`. |
+| **recorder.ts accidentally imported into frontend** | High | Critical | The `recorder.ts` module imports `node-record-lpcm16-ts` which breaks browser builds. Verification includes `grep -r "recorder" frontend/src/` which must return zero matches. |
 
 ---
 
@@ -220,20 +297,32 @@ Milestone 4: End-to-End Pipeline
 
 Since this is a PoC, testing will be lightweight:
 
-1. **Compile-time verification:** `npx tsc --noEmit` with `strict: true`.
+1. **Compile-time verification:** `npx tsc --noEmit` with `strict: true` in both `frontend/` and `backend/`.
 2. **Cache determinism test:** Run `synthesizeSpeech("test")` twice, verify the second call returns the cached file (0 credits).
 3. **Character limit test:** Pass a 300-character string to `ScriptBuilder`, verify it is truncated to <250 chars.
-4. **End-to-end smoke test:** Run `npx ts-node src/index.ts` and verify an MP3 file is produced in `output/`.
+4. **End-to-end CLI smoke test:** Run `npx ts-node src/index.ts` and verify an MP3 file is produced in `output/`.
 5. **STT smoke test:** Run `npx tsx src/index.ts --voice sample.wav` and verify topic extraction.
 6. **Live recording smoke test:** Run `npx tsx src/index.ts --record`, speak a topic, press ENTER, and verify transcription + podcast generation. (Requires sox and a connected microphone.)
+7. **API endpoint test:** `curl -X POST http://localhost:4000/api/generate-podcast -H "Content-Type: application/json" -d '{"topic":"technology","source":"text"}'` and verify a `PodcastOutput` JSON response with `audioUrl`.
+8. **Frontend smoke test:** Start `npm run dev`, open browser to `http://localhost:5173`, verify all four components render and the "Generate" flow produces playable audio.
+9. **Import boundary test:** `grep -r "recorder" frontend/src/` returns zero matches, confirming `recorder.ts` is not imported into the frontend.
+10. **Cache cross-compatibility test:** Run `npx tsx src/cli.ts --topic technology` (CLI), then generate the same topic via the web UI; verify cache hits on the second run (0 credits).
 
 ---
 
-## Next Steps (Post-PoC)
+## Next Steps (Post-Web)
 
-- Replace `MockNewsProvider` with a real RSS/NewsAPI integration.
-- ~~Add support for recording live audio via microphone~~ ✅ (Completed — `src/utils/recorder.ts` with `--record` flag)
-- Add configurable voice selection (allow users to pick from available ElevenLabs voices).
+- Replace `MockNewsProvider` with a real RSS feed or NewsAPI integration.
+- Add support for recording live audio via microphone via the web UI (using `MediaRecorder` API — already implemented) and deprecate the CLI `--record` flag.
+- Add configurable voice selection (allow users to pick from available ElevenLabs voices via the web UI).
 - Implement scheduled daily execution (cron job / CI workflow).
-- Add unit tests with Jest.
+- Add unit tests with Jest / Vitest for both frontend and backend.
 - Add a `--verbose` flag for debug-level logging.
+- Replace mock STT with real audio file upload in the browser (file input fallback for `--voice`).
+- Add a download button for the generated MP3 in the `PodcastPlayer` component.
+- Implement real-time SSE/SSE progress streaming from the backend during the synthesis phase (currently polled via StatusTracker state transitions).
+- Containerize the backend with Docker for deployment.
+
+---
+
+*End of document (v2.0)*
