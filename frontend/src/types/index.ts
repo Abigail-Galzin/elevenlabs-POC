@@ -24,11 +24,26 @@ export interface GeneratePodcastResponse {
   estimatedCredits: number;
   totalChars: number;
   newsArticles?: NewsItem[];
+  script?: PodcastScript;
 }
 
 export interface CacheClearResponse {
   success: boolean;
   message: string;
+}
+
+export interface HistoryEntry {
+  id: string;
+  timestamp: string;
+  pipeline_type: "API" | "WebSocket";
+  feature_type: "Text-to-Speech" | "Speech-to-Text";
+  input_data: string;
+  generated_response: string;
+  audio_file_path: string;
+}
+
+export interface HistoryResponse {
+  entries: HistoryEntry[];
 }
 
 export type PipelineStatus =
@@ -42,9 +57,9 @@ export type PipelineStatus =
   | "ready"
   | "error";
 
-import type { ExtendedPipelineStatus, NewsItem } from "./websocket";
+import type { ExtendedPipelineStatus, NewsItem, PodcastScript } from "./websocket";
 
-export type { ExtendedPipelineStatus, NewsItem } from "./websocket";
+export type { ExtendedPipelineStatus, NewsItem, PodcastScript } from "./websocket";
 
 export type TopicOption = {
   value: string;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import AudioRecorder from "./components/AudioRecorder";
+import HistorySection from "./components/HistorySection";
 import NewsPanel from "./components/NewsPanel";
 import PodcastPlayer from "./components/PodcastPlayer";
 import StatusTracker from "./components/StatusTracker";
@@ -25,6 +26,7 @@ const SYNTHESIZE_DELAY_MS = 450;
 export default function App() {
   const [mode, setMode] = useState<"text" | "voice">("text");
   const [commMode, setCommMode] = useState<"rest" | "websocket">("rest");
+  const [view, setView] = useState<"main" | "history">("main");
 
   const [selectedTopic, setSelectedTopic] = useState("");
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -305,16 +307,38 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-50">
-      <main className="flex min-h-screen items-center justify-center px-4 py-10">
-        <div className="w-full max-w-2xl space-y-6">
-          <header className="text-center">
-            <h1 className="text-3xl font-extrabold text-gray-900">
-              Automated Daily News Podcaster
-            </h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Radio-style podcasts from the latest headlines.
-            </p>
-          </header>
+      {/* Persistent History navigation button (top-right corner) */}
+      <button
+        type="button"
+        onClick={() => setView(view === "main" ? "history" : "main")}
+        className="fixed top-4 right-4 z-10 rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+      >
+        {view === "main" ? "History" : "← Back"}
+      </button>
+
+      <main className="flex min-h-screen items-center justify-center px-4 pt-16 pb-10">
+        {view === "history" ? (
+          <div className="w-full max-w-2xl">
+            <header className="mb-6 text-center">
+              <h1 className="text-3xl font-extrabold text-gray-900">
+                History Log
+              </h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Past podcast generations.
+              </p>
+            </header>
+            <HistorySection />
+          </div>
+        ) : (
+          <div className="w-full max-w-2xl space-y-6">
+            <header className="text-center">
+              <h1 className="text-3xl font-extrabold text-gray-900">
+                Automated Daily News Podcaster
+              </h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Radio-style podcasts from the latest headlines.
+              </p>
+            </header>
 
           {/* Communication mode toggle */}
           <WebSocketModeToggle
@@ -443,7 +467,8 @@ export default function App() {
               />
             </section>
           )}
-        </div>
+          </div>
+        )}
       </main>
     </div>
   );

@@ -129,6 +129,7 @@ export class NewsPodcaster {
       source,
       topic,
       newsArticles: newsItems,
+      script,
     };
 
     log("INFO", "Podcast generation complete!");

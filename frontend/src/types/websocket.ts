@@ -25,7 +25,7 @@ export type ServerMessageType =
   | "error";
 
 export type ClientMessage =
-  | { type: "generate"; topic?: string; source: "text" | "voice" }
+  | { type: "generate"; topic?: string; source: "text" | "voice"; input_data?: string }
   | { type: "transcribe"; audio: string; mimeType: string }
   | { type: "cancel" };
 

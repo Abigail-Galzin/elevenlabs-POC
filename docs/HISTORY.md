@@ -5,7 +5,7 @@
 **Document Version:** 1.0  
 **Date:** 2026-08-16  
 **Author:** Senior Software Architect  
-**Related:** [SDD.md](./SDD.md) (v2.0), [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) (v2.0)  
+**Related:** [SDD.md](./SDD.md) (v3.0), [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) (v3.0)  
 
 ---
 
@@ -18,6 +18,7 @@
 | 2026-08-13 | CLI Era | Core Functionality Complete | AudioManager, ScriptBuilder, MockNewsProvider, VoiceCommandParser, CLI pipeline. |
 | 2026-08-14 | CLI Era | Live Recording Feature | `recorder.ts` with sox backend; `--record` flag; manual fixes for stream error handling and pipeline flushing. |
 | 2026-08-16 | Transition | CLI → Web App | Architecture transition: React frontend + Express backend. CLI preserved as deprecated legacy. SDD & Development Plan updated to v2.0. |
+| 2026-08-16 | Web App | WebSocket Real-Time Streaming + History Log | Added WebSocket mode with live progress streaming, embedded news article display panel, and persistent history log with SQLite storage. |
 
 ---
 
@@ -355,7 +356,8 @@ The original flat `src/` structure was reorganized into:
 | 1.0 | 2026-08-12 | Senior Software Architect | Initial SDD documenting CLI architecture. |
 | 1.0 | 2026-08-12 | Senior Software Architect | Initial Development Plan documenting 4 CLI milestones. |
 | 2.0 | 2026-08-16 | Senior Software Architect | SDD rewritten for React + Express web architecture. Development Plan extended with Milestone 5 (Web GUI). This HISTORY document created. |
+| 3.0 | 2026-08-17 | Senior Software Architect | SDD & HISTORY updated: added WebSocket real-time streaming mode, embedded news article display panel, and persistent history log with SQLite database + GET /api/history endpoint. |
 
 ---
 
-*End of document (v1.0)*
+ *End of document (v2.0)*

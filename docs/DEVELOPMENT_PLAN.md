@@ -2,10 +2,10 @@
 
 ## Automated Daily News Podcaster — Proof of Concept
 
-**Plan Version:** 2.0  
+**Plan Version:** 3.0  
 **Date:** 2026-08-16  
 **Author:** Senior Software Architect  
-**Dependency:** Based on [SDD.md](./SDD.md) v2.0  
+**Dependency:** Based on [SDD.md](./SDD.md) v3.0
 
 ---
 
@@ -210,6 +210,58 @@ npx tsx src/index.ts --clear-cache
 
 ---
 
+## Milestone 6: WebSocket Real-Time Streaming + History Log
+
+### Tasks
+
+| # | Task | Details | Est. Time |
+|---|------|---------|-----------|
+| 6.1 | Install WebSocket dependencies | Add `ws@^8.x` and `@types/ws` to backend `package.json`. | 5 min |
+| 6.2 | Create podcastWebSocketOrchestrator | `backend/src/services/podcastWebSocketOrchestrator.ts`: reusable pipeline that calls `AudioManager`, `ScriptBuilder`, `MockNewsProvider`, and `VoiceCommandParser` individually with progress callbacks between each step (instead of `NewsPodcaster.generatePodcast()` which has no hooks). Emits WebSocket messages at every stage. | 45 min |
+| 6.3 | Create WebSocket server adapter | `backend/src/websocket.ts`: `attachWebSocket(httpServer, audioManager)` function that creates a `ws.WebSocketServer` on the same HTTP server. Spawns a fresh orchestrator per connection. Routes by `msg.type`. | 20 min |
+| 6.4 | Integrate WebSocket into server | `backend/src/server.ts`: replace `app.listen` with `createServer(app)` + `attachWebSocket`. **All 4 REST endpoints remain byte-for-byte unchanged.** | 10 min |
+| 6.5 | Define WebSocket protocol types | `frontend/src/types/websocket.ts`: 11 server→client message types (`status`, `log`, `news`, `script`, `synthesizing`, `cache_hit`, `synthesis_complete`, `stitching`, `transcription`, `ready`, `error`) + 3 client→server types (`generate`, `transcribe`, `cancel`). | 15 min |
+| 6.6 | Create WebSocket client | `frontend/src/services/websocketClient.ts`: browser WebSocket wrapper with multi-handler dispatch, JSON serialization, and auto-reconnect (exponential backoff: 1s→2s→4s→8s→8s, max 5 attempts). | 30 min |
+| 6.7 | Create mode toggle + log panel | `WebSocketModeToggle.tsx` (REST/WS toggle) and `StreamingLogs.tsx` (collapsible log panel with level-based coloring). | 20 min |
+| 6.8 | Implement App.tsx integration | Add `commMode` state (`"rest" | "websocket"`). Wire up type-narrowed handlers for all 11 server message types. Maintain full discriminated union narrowing. | 40 min |
+| 6.9 | Create NewsPanel component | `frontend/src/components/NewsPanel.tsx`: card-style article display (headlines, summaries, sources, timestamps). Shows in **both** modes — reads from REST response (`data.newsArticles`) or WebSocket `news` message. Add `newsArticles` to `PodcastOutput` type. | 30 min |
+| 6.10 | Create HistoryService + SQLite | `backend/src/services/historyService.ts`: `better-sqlite3` wrapper storing all generations in `backend/data/history.db`. Schema: `id, timestamp, pipeline_type, feature_type, input_data, generated_response, audio_file_path`. Called at end of every successful pipeline (REST + WS). | 60 min |
+| 6.11 | Implement GET /api/history endpoint | `server.ts`: returns latest history entries (newest first) as JSON. Optional `limit` query param (default 50). | 20 min |
+| 6.12 | Create HistorySection frontend | `frontend/src/components/HistorySection.tsx`: full-page view with expandable accordion cards (no modals). Header shows topic, timestamp, badges. Expanded view shows input vs. generated news response + embedded `<audio>` player. | 60 min |
+| 6.13 | Add History navigation button | Persistent button in top-right corner of UI to toggle/route to History section. | 15 min |
+
+### Verification
+
+- `npx tsc --noEmit` passes in both `frontend/` and `backend/` with zero errors.
+- WebSocket mode: toggle to WS, generate a podcast, verify live status streaming updates the `StatusTracker` in real time (fetching_news → building_script → synthesizing → stitching → ready).
+- REST mode unchanged: all 4 REST endpoints behave identically to before (verified by diff).
+- NewsPanel renders articles in both REST and WebSocket modes.
+- `GET /api/history` returns JSON array of past generations with all schema fields.
+- HistorySection renders expandable cards with embedded audio players.
+- `grep -r "recorder" frontend/src/` returns zero matches (recorder.ts is backend-only).
+- No ElevenLabs API calls consumed during development (tsc-only verification).
+
+### Deliverables
+
+- `backend/src/websocket.ts` — WebSocket server adapter
+- `backend/src/services/podcastWebSocketOrchestrator.ts` — WS pipeline orchestrator
+- `backend/src/services/historyService.ts` — SQLite history database service
+- `backend/src/server.ts` — Express + WebSocket integration (REST endpoints unchanged)
+- `backend/src/types/index.ts` — extended `PodcastOutput` with `newsArticles`
+- `frontend/src/types/websocket.ts` — WebSocket protocol message types
+- `frontend/src/services/websocketClient.ts` — browser WS client with auto-reconnect
+- `frontend/src/components/NewsPanel.tsx` — news article display
+- `frontend/src/components/WebSocketModeToggle.tsx` — REST/WS mode selector
+- `frontend/src/components/StreamingLogs.tsx` — collapsible log panel
+- `frontend/src/components/HistorySection.tsx` — history accordion cards with audio
+- `frontend/src/App.tsx` — REST + WS mode integration + history navigation
+- `frontend/src/types/index.ts` — extended types for news articles and history
+- `frontend/src/components/StatusTracker.tsx` — added building_script/stitching steps
+- `backend/data/` — SQLite database directory
+- `docs/WEBSOCKET.md` — WebSocket protocol documentation
+
+---
+
 ## Execution Sequence
 
 ```
@@ -267,7 +319,25 @@ Milestone 5: Web GUI & Backend API Routes
   ├── 5.13 App component + API client
   ├── 5.14 recorder.ts backend-only isolation guard
   ├── 5.15 Clear Cache button in web UI
-  └── Verification: Web app end-to-end with voice recording + playback
+   └── Verification: Web app end-to-end with voice recording + playback
+
+    ▼
+Milestone 6: WebSocket Real-Time Streaming + History Log
+   │
+   ├── 6.1 ws + @types/ws dependencies installed
+   ├── 6.2 podcastWebSocketOrchestrator.ts (pipeline orchestration with progress callbacks)
+   ├── 6.3 websocket.ts (attachWebSocket adapter on Express HTTP server)
+   ├── 6.4 server.ts integration (createServer + attachWebSocket; REST endpoints unchanged)
+   ├── 6.5 WebSocket message protocol types (11 server→client, 3 client→server)
+   ├── 6.6 websocketClient.ts (browser WS client with auto-reconnect)
+   ├── 6.7 WebSocketModeToggle + StreamingLogs frontend components
+   ├── 6.8 App.tsx integration (commMode state, type-narrowed handlers)
+   ├── 6.9 NewsPanel component (article display for both REST + WS modes)
+   ├── 6.10 HistoryService + SQLite database (backend/data/history.db)
+   ├── 6.11 GET /api/history endpoint (retrieve past generations)
+   ├── 6.12 HistorySection frontend component (expandable accordion cards + embedded audio)
+   ├── 6.13 History navigation button (persistent top-right corner)
+   └── Verification: tsc --noEmit passes (backend + frontend), no REST endpoints changed
 ```
 
 ---
@@ -312,17 +382,15 @@ Since this is a PoC, testing will be lightweight:
 
 ## Next Steps (Post-Web)
 
+- [x] **Milestone 6: WebSocket Real-Time Streaming + History Log** — COMPLETE. WebSocket mode with live progress streaming, embedded news article display panel, and persistent history log with SQLite storage.
 - Replace `MockNewsProvider` with a real RSS feed or NewsAPI integration.
-- Add support for recording live audio via microphone via the web UI (using `MediaRecorder` API — already implemented) and deprecate the CLI `--record` flag.
 - Add configurable voice selection (allow users to pick from available ElevenLabs voices via the web UI).
-- Implement scheduled daily execution (cron job / CI workflow).
 - Add unit tests with Jest / Vitest for both frontend and backend.
 - Add a `--verbose` flag for debug-level logging.
 - Replace mock STT with real audio file upload in the browser (file input fallback for `--voice`).
 - Add a download button for the generated MP3 in the `PodcastPlayer` component.
-- Implement real-time SSE/SSE progress streaming from the backend during the synthesis phase (currently polled via StatusTracker state transitions).
 - Containerize the backend with Docker for deployment.
 
 ---
 
-*End of document (v2.0)*
+ *End of document (v3.0)*

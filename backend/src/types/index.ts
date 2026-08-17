@@ -135,6 +135,8 @@ export interface PodcastOutput {
   topic: string;
   /** News articles that were fetched and included in the podcast script. */
   newsArticles: NewsItem[];
+  /** The full podcast script (intro, news items, outro) — for history logging. */
+  script: PodcastScript;
 }
 
 /**

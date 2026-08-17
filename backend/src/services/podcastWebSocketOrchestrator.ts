@@ -8,6 +8,7 @@ import { ScriptBuilder } from "../core/scriptBuilder.js";
 import { MockNewsProvider } from "../mocks/MockNewsProvider.js";
 import { VoiceCommandParser } from "../utils/voiceCommandParser.js";
 import { log } from "../utils/functions.js";
+import { logGeneration } from "./historyService.js";
 import {
   type NewsProvider,
   type NewsItem,
@@ -30,6 +31,7 @@ export interface GenerateMessage {
   type: "generate";
   topic?: string;
   source?: "voice" | "text";
+  inputData?: string;
 }
 
 export interface TranscribeMessage {
@@ -123,7 +125,7 @@ export class PodcastWebSocketOrchestrator {
         ws,
         "INFO",
         `  Script built: ${script.newsItems.length} news items, ` +
-          `${script.totalChars} total chars, ${script.estimatedCredits} estimated credits.`
+        `${script.totalChars} total chars, ${script.estimatedCredits} estimated credits.`
       );
 
       /* ------------------------------------------------------------------ */
@@ -216,6 +218,7 @@ export class PodcastWebSocketOrchestrator {
         source,
         topic,
         newsArticles: newsItems,
+        script,
       };
 
       const filename = basename(output.outputPath);
@@ -246,6 +249,19 @@ export class PodcastWebSocketOrchestrator {
         `  Credits saved (cache): ${output.creditsSaved}`
       );
       this.send(ws, { type: "status", status: "ready" });
+
+      try {
+        logGeneration({
+          pipeline_type: "WebSocket",
+          feature_type: source === "voice" ? "Speech-to-Text" : "Text-to-Speech",
+          input_data: msg.inputData || topic || "",
+          output,
+          script,
+        });
+      } catch (logError) {
+        const msg = logError instanceof Error ? logError.message : String(logError);
+        this.log(ws, "WARNING", `History logging failed (non-blocking): ${msg}`);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.log(ws, "ERROR", `Pipeline failed: ${message}`);
@@ -298,6 +314,7 @@ export class PodcastWebSocketOrchestrator {
         type: "generate",
         topic: voiceCommand.topic,
         source: "voice",
+        inputData: transcript,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

@@ -2,7 +2,7 @@
 
 ## Automated Daily News Podcaster — Web Application
 
-**Document Version:** 2.0  
+**Document Version:** 3.0  
 **Date:** 2026-08-16  
 **Author:** Senior Software Architect  
 **Language:** English  
@@ -483,6 +483,48 @@ Clears all cached audio files.
 
 ### 4.4 `GET /api/output/:filename`
 
+**Request:** None (path parameter: `filename`).
+
+**Response (200):** Binary MP3 file.
+
+### 4.5 `GET /api/history`
+
+Returns the execution history of all past podcast generations. The history is persisted in a local SQLite database (`history.db`) stored in the backend's `data/` directory. Each record captures the pipeline method (API/WebSocket), interaction type (text/voice), input data, generated news structure, and the audio file path for replay.
+
+**Request:** Empty body. Supports optional query parameters:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | number | 50 | Maximum number of entries to return (most recent first). |
+
+**Response (200):**
+
+```json
+{
+  "entries": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "timestamp": "2026-08-16T14:32:05.123Z",
+      "pipeline_type": "WebSocket",
+      "feature_type": "Speech-to-Speech",
+      "input_data": "Technology news today",
+      "generated_response": {
+        "date": "2026-08-16",
+        "intro": { "text": "...", "type": "intro" },
+        "newsItems": [
+          { "text": "...", "type": "news", "index": 0 },
+          { "text": "...", "type": "news", "index": 1 }
+        ],
+        "outro": { "text": "...", "type": "outro" },
+        "totalChars": 847,
+        "estimatedCredits": 42.35
+      },
+      "audio_file_path": "/api/output/podcast_20260816_143205.mp3"
+    }
+  ]
+}
+```
+
 Serves a generated podcast MP3 for in-browser playback.
 
 **Request:** None (path parameter only).
@@ -588,7 +630,67 @@ This demonstrates a **100% credit savings** on repeat runs with identical conten
 
 ---
 
-## 6. Non-Goals & Out of Scope
+## 6. History Log System
+
+The History Log provides a permanent record of every podcast generation, enabling users to review past requests, replay generated audio, and see which pipeline method was used (REST API vs. WebSocket).
+
+### 7.1 Database
+
+- **Technology:** [better-sqlite3](https://www.npmjs.com/package/better-sqlite3) — synchronous, zero-dependency SQLite bindings for Node.js.
+- **Location:** `backend/data/history.db` (SQLite file).
+- **Schema:**
+
+```sql
+CREATE TABLE IF NOT EXISTS history (
+    id            TEXT PRIMARY KEY,       -- UUID v4
+    timestamp     TEXT NOT NULL,          -- ISO 8601
+    pipeline_type TEXT NOT NULL,          -- "API" | "WebSocket"
+    feature_type  TEXT NOT NULL,          -- "Text-to-Speech" | "Speech-to-Text"
+    input_data    TEXT NOT NULL,          -- raw topic or transcribed text
+    generated_response TEXT NOT NULL,     -- serialized PodcastScript JSON
+    audio_file_path TEXT NOT NULL        -- path to MP3 (/api/output/<filename>)
+);
+```
+
+### 7.2 Architecture
+
+```
+User request (REST or WebSocket)
+       │
+       ▼
+┌────────────────────┐
+│  pipeline complete │
+│  (PodcastOutput)   │
+└────────┬───────────┘
+         │
+         ▼
+┌────────────────────┐   insert into   ┌─────────────────┐
+│  HistoryService    │ ——————————————→  │  history.db     │
+│  (better-sqlite3)  │                 │  (SQLite)       │
+└────────┬───────────┘                 └──────┬──────────┘
+         │                                    │
+         │      GET /api/history              │
+         └────────────────────────────────────┘
+```
+
+The `HistoryService` is invoked at the **end of every successful pipeline** — both the REST handler in `server.ts` and the WebSocket orchestrator (`podcastWebSocketOrchestrator.ts`) call `HistoryService.logGeneration()` with the pipeline metadata. No pipeline code is modified; the history insert is a single additional call before the response is sent to the client.
+
+### 7.3 API Endpoint
+
+`GET /api/history?limit=50` returns the most recent history entries (newest first). See [§4.5](#45-get-apihistory) for the full response shape.
+
+### 7.4 Frontend History Section
+
+The History section is a **full-page view** accessible via a persistent "History" button in the top-right corner of the UI. Each history entry renders as an **expandable accordion card** (no modals):
+
+- **Header (always visible):** Topic headline, timestamp, and badges for pipeline type (API/WebSocket) and feature type (TTS/STT).
+- **Expanded view:** The original input text alongside the generated news script JSON, plus an embedded `<audio>` player pointing to the saved MP3 file for in-place playback.
+
+The history view is available in **both REST and WebSocket modes** — it reads from `GET /api/history` regardless of the active communication mode.
+
+---
+
+## 7. Non-Goals & Out of Scope
 
 The following are explicitly out of scope for this PoC:
 
@@ -603,7 +705,7 @@ The following are explicitly out of scope for this PoC:
 
 ---
 
-## 7. Security Considerations
+## 8. Security Considerations
 
 - **API Key Management:** The ElevenLabs API key is loaded from the `ELEVENLABS_API_KEY` environment variable via `dotenv` on the backend only. It is **never** exposed to the browser. The frontend communicates exclusively through HTTP endpoints that internally use the key. The `.env` file is included in `.gitignore`.
 - **API Key Exposure Prevention:** The React frontend never imports `@elevenlabs/elevenlabs-js` or any module that references the API key. All ElevenLabs calls are routed through the Express backend.
@@ -615,9 +717,9 @@ The following are explicitly out of scope for this PoC:
 
 ---
 
-## 8. Dependencies
+## 9. Dependencies
 
-### 8.1 Backend (Node.js)
+### 9.1 Backend (Node.js)
 
 | Package | Version | Purpose |
 |---------|---------|---------|
@@ -637,8 +739,9 @@ The following are explicitly out of scope for this PoC:
 | `@types/multer` | ^1.4.0 | TypeScript types for multer |
 | `node-record-lpcm16-ts` | ^1.0.0 | TypeScript microphone recording (CLI legacy, backend-only) |
 | `node-record-lpcm16` | ^1.0.1 | Underlying recording library (sox/arecord/rec backend, CLI legacy) |
+| `better-sqlite3` | ^9.0.0 | Local SQLite database for the History Log |
 
-### 8.2 Backend Node.js Built-in Modules
+### 9.2 Backend Node.js Built-in Modules
 
 | `crypto` | MD5 hash generation for cache keys |
 | `fs` | File system operations (read/write/check cache, temp file cleanup) |
@@ -650,7 +753,7 @@ The following are explicitly out of scope for this PoC:
 | `util` | `promisify` wrapper for async exec calls |
 | `readline` | Capturing ENTER keypress to stop live recording (CLI legacy) |
 
-### 8.3 Frontend (React)
+### 9.3 Frontend (React)
 
 | Package | Version | Purpose |
 |---------|---------|---------|
@@ -663,7 +766,7 @@ The following are explicitly out of scope for this PoC:
 | `tailwindcss` | ^3.0.0 | Utility-first CSS framework |
 | (or) `nanostores` | ^0.20.0 | Lightweight state management (alternative to Tailwind) |
 
-### 8.4 Frontend APIs
+### 9.4 Frontend APIs
 
 | `MediaRecorder` | Browser-native audio recording (replaces `node-record-lpcm16-ts`) |
 | `getUserMedia` | Microphone permission request |
@@ -671,35 +774,43 @@ The following are explicitly out of scope for this PoC:
 
 ---
 
-## 9. File Structure
+## 10. File Structure
 
 ```
 elevenlabs-POC/
 ├── docs/
-│   ├── SDD.md                      ← This document (v2.0)
+│   ├── SDD.md                      ← This document (v3.0)
 │   ├── HISTORY.md                  ← Project evolution chronology
-│   └── DEVELOPMENT_PLAN.md         ← Implementation roadmap (v2.0)
+│   └── DEVELOPMENT_PLAN.md         ← Implementation roadmap (v3.0)
 ├── frontend/                       ← React + Vite web application
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── AudioRecorder.tsx   ← MediaRecorder API wrapper
 │   │   │   ├── TopicInput.tsx      ← Topic selector/dropdown
 │   │   │   ├── StatusTracker.tsx   ← Live pipeline status indicator
-│   │   │   └── PodcastPlayer.tsx   ← Audio player for generated MP3
+│   │   │   ├── WebSocketModeToggle.tsx ← REST/WS mode selector (WebSocket feature)
+│   │   │   ├── StreamingLogs.tsx ← Collapsible real-time log panel (WebSocket feature)
+│   │   │   ├── NewsPanel.tsx     ← News articles display (additive feature)
+│   │   │   └── PodcastPlayer.tsx ← Audio player for generated MP3
 │   │   ├── services/
-│   │   │   └── api.ts              ← HTTP client for API endpoints
+│   │   │   ├── api.ts            ← HTTP client for REST API endpoints
+│   │   │   └── websocketClient.ts ← Browser WebSocket client with auto-reconnect (WebSocket feature)
 │   │   ├── types/
-│   │   │   └── index.ts            ← Frontend type definitions (API shapes)
-│   │   ├── App.tsx                 ← Root component + state management
-│   │   ├── main.tsx                ← React entry point
-│   │   └── index.css               ← Global styles (Tailwind directives)
+│   │   │   ├── index.ts          ← Frontend type definitions (API shapes)
+│   │   │   └── websocket.ts      ← WebSocket protocol message types (WebSocket feature)
+│   │   ├── App.tsx               ← Root component + state management (REST + WS modes)
+│   │   ├── main.tsx              ← React entry point
+│   │   └── index.css             ← Global styles (Tailwind directives)
 │   ├── index.html
 │   ├── vite.config.ts              ← Vite config with @shared alias
 │   ├── tsconfig.json
 │   └── package.json
 ├── backend/                        ← Express HTTP server (Node.js)
 │   ├── src/
-│   │   ├── server.ts               ← Express server entry point
+│   │   ├── server.ts               ← Express server entry point (+ WebSocket attachment)
+│   │   ├── websocket.ts            ← attachWebSocket() adapter (WebSocket feature)
+│   │   ├── services/
+│   │   │   └── podcastWebSocketOrchestrator.ts ← WS pipeline orchestrator with progress streaming (WebSocket feature)
 │   │   ├── audioManager.ts         ← ElevenLabs TTS/STT, MD5 cache, ffmpeg
 │   │   ├── config/
 │   │   │   └── env.ts              ← Environment variables and constants
@@ -724,6 +835,7 @@ elevenlabs-POC/
 ├── audio_cache/                    ← MD5-keyed MP3 cache directory
 ├── output/                         ← Generated podcast MP3 files
 ├── temp/                           ← Temporary recording files (auto-cleaned)
+├── data/                           ← SQLite history database (history.db)
 ├── .env                            ← Environment variables (API key)
 ├── .gitignore                      ← Ignores .env, node_modules, audio_cache/
 ├── package.json                    ← Root workspace manifest
@@ -733,13 +845,13 @@ elevenlabs-POC/
 
 ---
 
-## 10. Assumptions & Constraints
+## 11. Assumptions & Constraints
 
 | # | Assumption | Justification |
 |---|-----------|---------------|
 | A-01 | The `eleven_flash_v2_5` model is available in the user's ElevenLabs account. | Confirmed available in SDK v2.63.0; requires a paid account. |
 | A-02 | The voice ID `JBFqnCBsd6RMkjVDRZzb` ("George") is accessible. | Available in the playground project's voice library. |
-| A-03 | News mock data is sufficient for PoC validation. | The user specified a PoC; real news integration is a future enhancement (Non-Goal 6.1). |
+| A-03 | News mock data is sufficient for PoC validation. | The user specified a PoC; real news integration is a future enhancement (Non-Goal 7.1). |
 | A-04 | Audio input for STT is provided as an audio file (WAV/MP3). Live microphone recording is supported via the browser's `MediaRecorder` API (web) or `--record` flag (CLI). | The web app captures audio in-browser and sends it to the backend's `/api/transcribe` endpoint. |
 | A-05 | Single-threaded execution is sufficient for the API server. | A daily podcast is generated once per request; no concurrent pipeline requirements. |
 | A-06 | The backend server runs on the same machine as the cache and output directories. | File system caching (`audio_cache/`, `output/`) requires local disk access. |
@@ -747,7 +859,7 @@ elevenlabs-POC/
 
 ---
 
-## 11. Acceptance Criteria
+## 12. Acceptance Criteria
 
 The PoC is considered complete when:
 
@@ -766,4 +878,4 @@ The PoC is considered complete when:
 
 ---
 
-*End of document (v2.0)*
+ *End of document (v3.0)*

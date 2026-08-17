@@ -1,6 +1,7 @@
 import type {
   CacheClearResponse,
   GeneratePodcastResponse,
+  HistoryResponse,
   TranscribeResponse,
 } from "../types";
 
@@ -54,6 +55,20 @@ export async function clearCache(): Promise<CacheClearResponse> {
   const res = await fetch("/api/cache/clear", {
     method: "POST",
   });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(toErrorMessage(data));
+  }
+
+  return res.json();
+}
+
+export async function fetchHistory(limit?: number): Promise<HistoryResponse> {
+  const params = new URLSearchParams();
+  if (limit) params.set("limit", String(limit));
+  const queryString = params.toString();
+  const res = await fetch(queryString ? `/api/history?${queryString}` : "/api/history");
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

@@ -13,6 +13,11 @@ import { log } from "./utils/functions.js";
 import { VoiceCommandParser } from "./utils/voiceCommandParser.js";
 import { CREDITS_PER_CHAR } from "./types/index.js";
 import { attachWebSocket } from "./websocket.js";
+import {
+  logGeneration,
+  getHistory,
+  closeHistoryDb,
+} from "./services/historyService.js";
 
 import type { PodcastOutput, VoiceCommand } from "./types/index.js";
 import type { Request, Response, NextFunction } from "express";
@@ -122,6 +127,20 @@ app.post(
       const estimatedCredits = output.creditsConsumed + output.creditsSaved;
       const totalChars = Math.round(estimatedCredits / CREDITS_PER_CHAR);
 
+      // Log to history (non-blocking — don't fail the response if logging errors)
+      try {
+      logGeneration({
+        pipeline_type: "API",
+        feature_type: source === "voice" ? "Speech-to-Text" : "Text-to-Speech",
+        input_data: topic || "",
+        output,
+        script: output.script,
+      });
+      } catch (logError) {
+        const msg = logError instanceof Error ? logError.message : String(logError);
+        log("WARNING", `History logging failed (non-blocking): ${msg}`);
+      }
+
       return res.json({
         ...output,
         audioUrl,
@@ -145,6 +164,27 @@ app.post("/api/cache/clear", (_req: Request, res: Response) => {
     success: true,
     message: "Audio cache cleared successfully.",
   });
+});
+
+/* ------------------------------------------------------------------ */
+/* GET /api/history — retrieve past generations                       */
+/* ------------------------------------------------------------------ */
+app.get("/api/history", (req: Request, res: Response) => {
+  const limit = req.query.limit
+    ? parseInt(req.query.limit as string, 10)
+    : 50;
+
+  try {
+    const entries = getHistory({ limit: isNaN(limit) ? undefined : limit });
+    return res.json({ entries });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log("ERROR", `Failed to retrieve history: ${message}`);
+    const clientMessage = isDev
+      ? `Failed to retrieve history: ${message}`
+      : "Failed to retrieve history.";
+    return res.status(500).json({ error: clientMessage });
+  }
 });
 
 /* ------------------------------------------------------------------ */
@@ -183,6 +223,7 @@ const server = httpServer.listen(PORT, () => {
 
 function shutdown(signal: string): void {
   log("INFO", `Received ${signal}. Shutting down server...`);
+  closeHistoryDb();
   server.close(() => {
     log("INFO", "Server closed.");
     process.exit(0);

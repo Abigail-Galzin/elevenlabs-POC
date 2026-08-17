@@ -5,7 +5,7 @@
 **Document Version:** 1.0  
 **Date:** 2026-08-16  
 **Author:** Senior Software Architect  
-**Related:** [SDD.md](./SDD.md) (v2.0), [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) (v2.0)
+**Related:** [SDD.md](./SDD.md) (v3.0), [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) (v3.0)
 
 ---
 
@@ -85,7 +85,7 @@ Browser (React)                         Backend (Express + ws)
 - `NewsPanel.tsx` — new component that displays fetched news articles (headlines, summaries, sources, timestamps) in a card layout.
 - `App.tsx` modified to support a `commMode` state (`"rest" | "websocket"`) alongside the existing `mode` state (`"text" | "voice"`).
 - `podcastWebSocketOrchestrator.ts` and `newsPodcaster.ts` modified to include `newsArticles` in the `PodcastOutput` return value — the REST endpoint now returns the fetched articles in the response for display in both modes.
-- `frontend/src/types/index.ts` and `backend/src/types/index.ts` modified to add `newsArticles: NewsItem[]` to the output/response types.
+- `frontend/src/types/index.ts` and `backend/src/types/index.ts` modified to add `newsArticles: NewsItem[]` and `script: PodcastScript` to the output/response types.
 
 ---
 
@@ -305,4 +305,4 @@ These are in addition to the existing REST API dependencies (`express`, `cors`, 
 
 ---
 
-*End of document (v1.0)*
+ *End of document (v2.0)*
