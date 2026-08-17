@@ -128,6 +128,7 @@ export class NewsPodcaster {
       cacheMisses,
       source,
       topic,
+      newsArticles: newsItems,
     };
 
     log("INFO", "Podcast generation complete!");

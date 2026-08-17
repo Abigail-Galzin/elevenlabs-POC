@@ -4,15 +4,16 @@
   "description": "Automated Daily News Podcaster PoC — generates radio-style podcasts from news headlines using ElevenLabs TTS and STT",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/index.ts",
-    "dev:text": "tsx src/index.ts --topic technology",
-    "dev:voice": "tsx src/index.ts --voice audio/sample-command.wav",
-    "dev:record": "tsx src/index.ts --record",
-    "dev:clear-cache": "tsx src/index.ts --clear-cache",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit"
+    "dev": "tsx backend/src/cli.ts",
+    "dev:server": "tsx backend/src/server.ts",
+    "dev:text": "tsx backend/src/cli.ts --topic technology",
+    "dev:voice": "tsx backend/src/cli.ts --voice audio/sample-command.wav",
+    "dev:record": "tsx backend/src/cli.ts --record",
+    "dev:clear-cache": "tsx backend/src/cli.ts --clear-cache",
+    "build": "tsc -p backend/tsconfig.json",
+    "start": "node backend/dist/cli.js",
+    "typecheck": "tsc --noEmit -p backend/tsconfig.json",
+    "lint": "tsc --noEmit -p backend/tsconfig.json"
   },
   "keywords": [
     "elevenlabs",
@@ -27,17 +28,35 @@
   "license": "MIT",
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.63.0",
+    "@types/ws": "^8.18.1",
+    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
+    "express": "^5.2.1",
     "ffmpeg-static": "^5.0.0",
     "fluent-ffmpeg": "^2.1.0",
+    "multer": "^2.2.0",
     "node-record-lpcm16": "^1.0.1",
-    "node-record-lpcm16-ts": "^1.0.0"
+    "node-record-lpcm16-ts": "^1.0.0",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/fluent-ffmpeg": "^2.0.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "^20.19.43",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.26",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwindcss": "^4.3.3",
     "ts-node": "^10.9.0",
     "tsx": "^4.23.12",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vite": "^8.2.1"
   }
 }

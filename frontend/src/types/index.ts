@@ -23,6 +23,7 @@ export interface GeneratePodcastResponse {
   audioUrl: string;
   estimatedCredits: number;
   totalChars: number;
+  newsArticles?: NewsItem[];
 }
 
 export interface CacheClearResponse {
@@ -35,8 +36,15 @@ export type PipelineStatus =
   | "recording"
   | "transcribing"
   | "fetching_news"
+  | "building_script"
   | "synthesizing"
-  | "ready";
+  | "stitching"
+  | "ready"
+  | "error";
+
+import type { ExtendedPipelineStatus, NewsItem } from "./websocket";
+
+export type { ExtendedPipelineStatus, NewsItem } from "./websocket";
 
 export type TopicOption = {
   value: string;

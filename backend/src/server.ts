@@ -4,6 +4,7 @@ import cors from "cors";
 import multer from "multer";
 import { existsSync, mkdirSync, unlinkSync } from "node:fs";
 import { basename, join } from "node:path";
+import { createServer } from "node:http";
 
 import { ENV } from "./config/env.js";
 import { AudioManager } from "./audioManager.js";
@@ -11,6 +12,7 @@ import { NewsPodcaster } from "./core/newsPodcaster.js";
 import { log } from "./utils/functions.js";
 import { VoiceCommandParser } from "./utils/voiceCommandParser.js";
 import { CREDITS_PER_CHAR } from "./types/index.js";
+import { attachWebSocket } from "./websocket.js";
 
 import type { PodcastOutput, VoiceCommand } from "./types/index.js";
 import type { Request, Response, NextFunction } from "express";
@@ -173,7 +175,9 @@ app.use(
 /* ------------------------------------------------------------------ */
 /* Server lifecycle                                                   */
 /* ------------------------------------------------------------------ */
-const server = app.listen(PORT, () => {
+const httpServer = createServer(app);
+attachWebSocket(httpServer, audioManager);
+const server = httpServer.listen(PORT, () => {
   log("INFO", `Express server listening on port ${PORT}`);
 });
 

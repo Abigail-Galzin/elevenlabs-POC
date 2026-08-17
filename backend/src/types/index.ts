@@ -133,6 +133,8 @@ export interface PodcastOutput {
   source: "voice" | "text";
   /** The topic this podcast covers (empty string for general news). */
   topic: string;
+  /** News articles that were fetched and included in the podcast script. */
+  newsArticles: NewsItem[];
 }
 
 /**

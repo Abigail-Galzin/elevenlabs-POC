@@ -10,7 +10,9 @@ const STEPS: Step[] = [
   { key: "recording", label: "Recording", icon: "🎙️" },
   { key: "transcribing", label: "Transcribing", icon: "📝" },
   { key: "fetching_news", label: "Fetching News", icon: "📰" },
+  { key: "building_script", label: "Script", icon: "📋" },
   { key: "synthesizing", label: "Synthesizing", icon: "🔊" },
+  { key: "stitching", label: "Stitching", icon: "✂️" },
   { key: "ready", label: "Ready", icon: "✅" },
 ];
 
@@ -18,7 +20,9 @@ const STATUS_ORDER: PipelineStatus[] = [
   "recording",
   "transcribing",
   "fetching_news",
+  "building_script",
   "synthesizing",
+  "stitching",
   "ready",
 ];
 
