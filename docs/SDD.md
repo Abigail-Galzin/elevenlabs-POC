@@ -13,7 +13,7 @@
 
 ### 1.1 Purpose
 
-The **Automated Daily News Podcaster** is a TypeScript-based web application that transforms daily news headlines into a radio-style audio podcast. A React frontend provides an interactive interface for users to generate podcasts by topic — either by typing a topic keyword or by recording a voice command in the browser. An Express HTTP server on the backend handles all ElevenLabs API interactions, audio synthesis, transcription, and local disk caching.
+The **Automated Daily News Podcaster** is a TypeScript-based web application that transforms daily news headlines into a radio-style audio podcast. A React frontend provides an interactive interface for users to generate podcasts by topic — either by typing a topic keyword in the browser. An Express HTTP server on the backend handles all ElevenLabs API interactions, audio synthesis, transcription, and local disk caching.
 
 The application is designed as a **Proof of Concept (PoC)** with the following primary objectives:
 
@@ -28,9 +28,8 @@ The application is designed as a **Proof of Concept (PoC)** with the following p
 | # | Use Case | Description |
 |---|----------|-------------|
 | UC-01 | **Daily Automated Podcast Generation** | A user opens the web app, selects or types a topic (or leaves it blank for general news), and clicks "Generate." The system fetches the top 3 news headlines, builds a radio-style script (Intro → 3 News Items → Outro), synthesizes each section into speech via `eleven_flash_v2_5`, stitches the segments together with inter-segment silence, and makes the resulting MP3 playable in the browser via the `PodcastPlayer` component. |
-| UC-02 | **Voice-Requested Topic Filtering** | A user clicks "Record" in the `AudioRecorder` component, speaks a topic (e.g., "Give me technology news today"), and stops the recording. The browser captures the audio via the MediaRecorder API. The audio blob is sent to the backend's `/api/transcribe` endpoint, which transcribes it via `scribe_v1`, extracts the topic keyword using `VoiceCommandParser`, and returns the parsed `VoiceCommand`. The frontend then calls `/api/generate-podcast` with the extracted topic to produce a targeted podcast. |
+| UC-02 | **Voice-Requested Topic Filtering** | Captures voice input directly from the user's audio path. The browser captures the audio via the MediaRecorder API. The audio blob is sent to the backend's `/api/transcribe` endpoint, which transcribes it via `scribe_v1`, extracts the topic keyword using `VoiceCommandParser`, and returns the parsed `VoiceCommand`. The frontend then calls `/api/generate-podcast` with the extracted topic to produce a targeted podcast. |
 | UC-03 | **Cached Audio Reuse** | When the same text block (e.g., a recurring intro) is requested across multiple runs or sessions, the system serves the audio from local disk cache (`audio_cache/`), consuming zero API credits. Cache entries are keyed by the MD5 hash of the input text, shared between CLI and web invocations. |
-| UC-04 | **Live Microphone Recording (Browser)** | The `AudioRecorder` component uses the browser's native `MediaRecorder` API to capture voice input directly from the user's microphone. Unlike the CLI's `--record` flag (which uses `node-record-lpcm16-ts` with a sox backend), the web version requires no system-level audio dependencies — only browser microphone permissions. The recording stops when the user clicks "Stop," and the resulting audio Blob is sent to the backend for transcription. |
 
 ---
 
@@ -47,7 +46,7 @@ The system is organized into five layers with clear separation of concerns. Data
 │    • AudioRecorder  → MediaRecorder API → audio Blob                         │
 │    • TopicInput     → selects topic keyword or "all news"                    │
 │    • StatusTracker  → shows live pipeline progress                           │
-│      (Recording → Transcribing → Fetching News → Synthesizing → Ready)     │
+│      (Transcribing → Fetching News → Synthesizing → Ready)                   │
 │    • PodcastPlayer  → plays generated MP3 in-browser                         │
 │                                                                             │
 │  HTTP requests to Express API server:                                        │
@@ -108,32 +107,29 @@ The system is organized into five layers with clear separation of concerns. Data
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                    CLI LEGACY LAYER (deprecated, archived)                   │
 │                                                                             │
-│  backend/src/cli.ts → npx tsx src/cli.ts [--topic | --voice | --record | ...│
+│  backend/src/cli.ts → npx tsx src/cli.ts [--topic | --voice | ...│
 │  • Fully functional but deprecated                                           │
 │  • Preserved for archival; not maintained                                    │
-│  • Uses recorder.ts (node-record-lpcm16-ts, backend-only)                   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.1 Presentation Layer (React)
 
-**Responsibility:** Provide an interactive web UI for podcast generation, voice recording, topic selection, live status feedback, and audio playback.
+**Responsibility:** Provide an interactive web UI for podcast generation, topic selection, live status feedback, and audio playback.
 
 **Components:**
 
-- **`AudioRecorder`** — Uses the browser's native `MediaRecorder` API to capture microphone input. Requests `getUserMedia` permission, records until the user clicks "Stop," and emits an `audio/Blob` (WebM/Opus or WAV). No system-level audio dependencies are required (unlike the CLI's sox-based `recorder.ts`).
 - **`TopicInput`** — A dropdown/autocomplete input listing the supported topics (`technology`, `sports`, `politics`, `business`, `science`, `entertainment`, `health`). Includes a "General News" option (empty topic). Emits the selected topic string.
-- **`StatusTracker`** — A real-time progress indicator showing the pipeline state: `Recording → Transcribing → Fetching News → Synthesizing → Ready`. Transitions are driven by the parent component as each API call progresses. Each state has an icon and label.
+- **`StatusTracker`** — A real-time progress indicator showing the pipeline state: `Transcribing → Fetching News → Synthesizing → Ready`. Transitions are driven by the parent component as each API call progresses. Each state has an icon and label.
 - **`PodcastPlayer`** — An HTML5 `<audio>` element with native controls, loading the generated MP3 via `GET /api/output/:filename`. Displays episode metadata (duration, credits consumed, cache hits/misses).
 - **`App`** — Root component that assembles the above into a single-page layout, manages shared state (selected topic, audio blob, status, podcast output), and orchestrates API calls.
 
 **Data Flow:**
 1. User selects a topic (or leaves blank) → `TopicInput` emits topic string.
-2. User clicks "Record" → `AudioRecorder` requests microphone, records, emits audio Blob.
-3. Parent sends audio Blob to `POST /api/transcribe` → backend returns `{ transcript, voiceCommand }`.
-4. Parent sends `{ topic, source: "voice" }` to `POST /api/generate-podcast` → backend returns `PodcastOutput` + `audioUrl`.
-5. `PodcastPlayer` loads `audioUrl` and plays the MP3.
-6. For non-voice mode: User clicks "Generate" → Parent sends `{ topic, source: "text" }` to `POST /api/generate-podcast`.
+2. Parent sends audio Blob to `POST /api/transcribe` → backend returns `{ transcript, voiceCommand }`.
+3. Parent sends `{ topic, source: "voice" }` to `POST /api/generate-podcast` → backend returns `PodcastOutput` + `audioUrl`.
+4. `PodcastPlayer` loads `audioUrl` and plays the MP3.
+5. For non-voice mode: User clicks "Generate" → Parent sends `{ topic, source: "text" }` to `POST /api/generate-podcast`.
 
 ### 2.2 API Server Layer (Express)
 
@@ -184,11 +180,7 @@ The system is organized into five layers with clear separation of concerns. Data
 
 - **Location:** `backend/src/cli.ts` (renamed from `src/index.ts`).
 - **Status:** Fully functional but deprecated. No new features or bug fixes.
-- **Usage:** `npx tsx src/cli.ts [--topic | --voice | --record | --clear-cache | --help]`.
-- **Backend-only recording:** `recorder.ts` (`utils/recorder.ts`) uses `node-record-lpcm16-ts` with a sox backend (`rec` on macOS, `arecord` on Linux). It contains two manual fixes that must not be lost:
-  - **`Promise.race([inputPromise, streamErrorPromise])`** — races the ENTER-keypress resolver against a stream error listener so that SoX startup failures surface immediately instead of blocking on stdin.
-  - **`pipeline(stream, fileStream)`** — uses Node.js `stream.pipeline` to ensure the recording stream is fully flushed to disk before the file is closed, preventing truncated WAV output.
-- **Important:** `recorder.ts` imports `node-record-lpcm16-ts`, a native Node.js module that is **not** browser-compatible. It must NEVER be imported into the React frontend. The web app uses the browser's native `MediaRecorder` API instead (see Section 2.1).
+- **Usage:** `npx tsx src/cli.ts [--topic | --voice | --clear-cache | --help]`.
 
 ---
 
@@ -709,7 +701,6 @@ The following are explicitly out of scope for this PoC:
 
 - **API Key Management:** The ElevenLabs API key is loaded from the `ELEVENLABS_API_KEY` environment variable via `dotenv` on the backend only. It is **never** exposed to the browser. The frontend communicates exclusively through HTTP endpoints that internally use the key. The `.env` file is included in `.gitignore`.
 - **API Key Exposure Prevention:** The React frontend never imports `@elevenlabs/elevenlabs-js` or any module that references the API key. All ElevenLabs calls are routed through the Express backend.
-- **`recorder.ts` Backend Isolation:** `recorder.ts` imports `node-record-lpcm16-ts`, a native Node.js module. It must NEVER be imported into the React frontend bundle. The web app uses the browser's native `MediaRecorder` API instead. This is enforced by the architectural separation: backend source lives in `backend/src/`, frontend source lives in `frontend/src/`.
 - **Input Sanitization:** All text blocks are truncated to `< 250 characters` before being sent to the ElevenLabs API, preventing oversized payloads.
 - **Audio File Handling:** STT input audio files are received as multipart form data, saved to `temp/`, transcribed, and deleted. No file system writes occur outside `audio_cache/`, `output/`, and `temp/`.
 - **CORS Configuration:** CORS is configured to allow requests only from the Vite dev server (`http://localhost:5173`) during development and from the same origin in production.
@@ -737,8 +728,6 @@ The following are explicitly out of scope for this PoC:
 | `@types/cors` | ^2.8.0 | TypeScript types for cors |
 | `multer` | ^1.4.0 | Multipart form-data handling for audio uploads |
 | `@types/multer` | ^1.4.0 | TypeScript types for multer |
-| `node-record-lpcm16-ts` | ^1.0.0 | TypeScript microphone recording (CLI legacy, backend-only) |
-| `node-record-lpcm16` | ^1.0.1 | Underlying recording library (sox/arecord/rec backend, CLI legacy) |
 | `better-sqlite3` | ^9.0.0 | Local SQLite database for the History Log |
 
 ### 9.2 Backend Node.js Built-in Modules
@@ -748,10 +737,8 @@ The following are explicitly out of scope for this PoC:
 | `path` | Cross-platform path construction |
 | `os` | Temporary directory access |
 | `stream` | Stream consumption for audio buffers |
-| `stream/promises` | `pipeline` for proper stream flushing (used in `recorder.ts`) |
 | `child_process` | Spawning `system_profiler` for audio device detection (CLI legacy) |
 | `util` | `promisify` wrapper for async exec calls |
-| `readline` | Capturing ENTER keypress to stop live recording (CLI legacy) |
 
 ### 9.3 Frontend (React)
 
@@ -768,7 +755,6 @@ The following are explicitly out of scope for this PoC:
 
 ### 9.4 Frontend APIs
 
-| `MediaRecorder` | Browser-native audio recording (replaces `node-record-lpcm16-ts`) |
 | `getUserMedia` | Microphone permission request |
 | `HTMLAudioElement` | Native audio playback for `<audio>` element |
 
@@ -823,8 +809,6 @@ elevenlabs-POC/
 │   │   │   └── index.ts            ← TypeScript interfaces and constants
 │   │   ├── utils/
 │   │   │   ├── functions.ts        ← Logging and utility helpers
-│   │   │   ├── recorder.ts         ← Live microphone recording (CLI legacy,
-│   │   │   │                       │   backend-only — NOT imported to frontend)
 │   │   │   └── voiceCommandParser.ts ← Voice command topic extraction
 │   │   └── cli.ts                  ← CLI entry point (deprecated, archived)
 │   ├── tsconfig.json
@@ -834,7 +818,6 @@ elevenlabs-POC/
 │       └── index.ts                ← Canonical data contracts (NewsItem, etc.)
 ├── audio_cache/                    ← MD5-keyed MP3 cache directory
 ├── output/                         ← Generated podcast MP3 files
-├── temp/                           ← Temporary recording files (auto-cleaned)
 ├── data/                           ← SQLite history database (history.db)
 ├── .env                            ← Environment variables (API key)
 ├── .gitignore                      ← Ignores .env, node_modules, audio_cache/
@@ -852,7 +835,7 @@ elevenlabs-POC/
 | A-01 | The `eleven_flash_v2_5` model is available in the user's ElevenLabs account. | Confirmed available in SDK v2.63.0; requires a paid account. |
 | A-02 | The voice ID `JBFqnCBsd6RMkjVDRZzb` ("George") is accessible. | Available in the playground project's voice library. |
 | A-03 | News mock data is sufficient for PoC validation. | The user specified a PoC; real news integration is a future enhancement (Non-Goal 7.1). |
-| A-04 | Audio input for STT is provided as an audio file (WAV/MP3). Live microphone recording is supported via the browser's `MediaRecorder` API (web) or `--record` flag (CLI). | The web app captures audio in-browser and sends it to the backend's `/api/transcribe` endpoint. |
+| A-04 | -
 | A-05 | Single-threaded execution is sufficient for the API server. | A daily podcast is generated once per request; no concurrent pipeline requirements. |
 | A-06 | The backend server runs on the same machine as the cache and output directories. | File system caching (`audio_cache/`, `output/`) requires local disk access. |
 | A-07 | The browser supports the `MediaRecorder` API. | Required for voice recording. Modern browsers (Chrome 94+, Firefox 91+, Safari 14.1+) support it. |
@@ -866,16 +849,13 @@ The PoC is considered complete when:
 1. ✅ The backend server (`npm run dev:server`) starts and exposes HTTP endpoints on port 4000 without errors.
 2. ✅ The frontend app (`npm run dev`) loads in the browser and the `TopicInput`, `StatusTracker`, and `PodcastPlayer` components render correctly.
 3. ✅ Clicking "Generate" (text mode) with a topic calls `POST /api/generate-podcast`, and the `PodcastPlayer` plays the resulting MP3 in-browser.
-4. ✅ Clicking "Record" in `AudioRecorder` requests microphone permission, captures audio via `MediaRecorder`, sends it to `POST /api/transcribe`, and displays the extracted topic.
-5. ✅ The `StatusTracker` shows the correct sequence: `Recording → Transcribing → Fetching News → Synthesizing → Ready` during a full voice-driven pipeline.
+5. ✅ The `StatusTracker` shows the correct sequence: `Transcribing → Fetching News → Synthesizing → Ready` during a full voice-driven pipeline.
 6. ✅ The intro/outro text blocks produce identical MD5 hashes across runs, proving the cache works across CLI and web sessions.
 7. ✅ Each script block is strictly < 250 characters (verified by runtime assertion in `ScriptBuilder.truncateBlock()`).
 8. ✅ The total credits estimated by the script matches the SDK's actual consumption within 2%.
 9. ✅ Running the same topic twice shows cache hit logging and 0 credits consumed on the second run.
 10. ✅ All TypeScript code compiles with `strict: true` and passes `tsc --noEmit` in both `frontend/` and `backend/`.
 11. ✅ The deprecated CLI entry point (`backend/src/cli.ts`) still runs via `npx tsx src/cli.ts` and produces the same output as before the web transition.
-12. ✅ The `recorder.ts` module is never imported by any frontend source file (verified by grep / import boundary check).
-
 ---
 
  *End of document (v3.0)*

@@ -24,8 +24,7 @@ This document outlines the step-by-step implementation plan for building the Aut
 | # | Task | Details | Est. Time |
 |---|------|---------|-----------|
 | 1.1 | Create `package.json` | `npm init -y`, name: `daily-news-podcaster`, set `"type": "module"`. | 5 min |
-| 1.2 | Install runtime dependencies | `npm install @elevenlabs/elevenlabs-js dotenv ffmpeg-static fluent-ffmpeg node-record-lpcm16-ts` | 5 min |
-| 1.2b | Install system dependency for recording | `brew install sox` (macOS) or `sudo apt install sox` (Linux) — required for `--record` flag | 2 min |
+| 1.2 | Install runtime dependencies | `npm install @elevenlabs/elevenlabs-js dotenv ffmpeg-static fluent-ffmpeg` | 5 min |
 | 1.3 | Install dev dependencies | `npm install -D typescript tsx @types/node @types/fluent-ffmpeg` | 5 min |
 | 1.4 | Create `tsconfig.json` | Target: `ES2022`, Module: `NodeNext`, ModuleResolution: `NodeNext`, Strict mode, `resolveJsonModule: true`, `esModuleInterop: true`, `skipLibCheck: true`. | 10 min |
 | 1.5 | Create `.env` file | `ELEVENLABS_API_KEY=sk_...` (from `my-playground-voice/.env`). | 2 min |
@@ -119,7 +118,7 @@ This document outlines the step-by-step implementation plan for building the Aut
 | 4.2 | Implement `ScriptBuilder` class | Takes `NewsItem[]`. Builds `PodcastScript` with Intro, 1-3 News blocks, Outro. Enforces <250 char limit per block with truncation. Calculates `estimatedCredits` and `totalChars`. | 25 min |
 | 4.3 | Implement `NewsPodcaster` class (orchestrator) | Main pipeline: `generatePodcast(options)`. Steps: 1) Create `AudioManager`, 2) Fetch news (via `MockNewsProvider`), 3) Build script (via `ScriptBuilder`), 4) Synthesize each block (via `AudioManager`), 5) Stitch segments, 6) Save output, 7) Return `PodcastOutput`. | 25 min |
 | 4.4 | Implement `NewsPodcaster.processVoiceRequest()` | Pipeline variant: 1) Transcribe audio (via `AudioManager.transcribeAudio`), 2) Parse voice command (via `VoiceCommandParser`), 3) Fetch news filtered by topic, 4) Generate podcast, 5) Return `PodcastOutput`. | 15 min |
-| 4.5 | Implement CLI entry point in `src/index.ts` | Parse command-line arguments: `--topic <topic>`, `--voice <path>`, `--record`/`-r` (live recording), `--clear-cache`, `--help`. Dispatch to the appropriate method on `NewsPodcaster`. | 20 min |
+| 4.5 | Implement CLI entry point in `src/index.ts` | Parse command-line arguments: `--topic <topic>`, `--voice <path>`, `--clear-cache`, `--help`. Dispatch to the appropriate method on `NewsPodcaster`. | 20 min |
 | 4.6 | Add structured logging | Use `console.log` with timestamp prefixes for: `INFO`, `WARNING`, `ERROR`. Log each phase's progress, cache hits/misses, and credit consumption. | 10 min |
 | 4.7 | Add error handling | Catch and log ElevenLabs API errors, file system errors, and invalid input. Exit with non-zero code on failure. | 10 min |
 
@@ -135,9 +134,6 @@ npx tsx src/index.ts --topic technology
 # Generate a podcast from a voice command
 npx tsx src/index.ts --voice audio/sample-command.wav
 
-# Record your voice live from the terminal microphone
-npx tsx src/index.ts --record
-
 # Clear the audio cache
 npx tsx src/index.ts --clear-cache
 ```
@@ -146,7 +142,6 @@ npx tsx src/index.ts --clear-cache
 
 - `npx tsx src/index.ts` generates `output/podcast_{timestamp}.mp3`.
 - `npx tsx src/index.ts --topic technology` filters news to technology items.
-- `npx tsx src/index.ts --record` records live from the microphone and transcribes via scribe_v1.
 - Running the same command twice shows cache hit logging and 0 credits consumed.
 - `--clear-cache` removes all files from `audio_cache/`.
 - `tsc --noEmit` passes with zero errors.
@@ -161,7 +156,7 @@ npx tsx src/index.ts --clear-cache
 
 ## Milestone 5: Web GUI & Backend API Routes
 
-**Goal:** Transition the CLI PoC into a React web application with an Express HTTP backend, preserving all existing service-layer logic and introducing a browser-native `AudioRecorder` component that replaces the sox-based CLI recorder.
+**Goal:** Transition the CLI PoC into a React web application with an Express HTTP backend, preserving all existing service-layer logic.
 
 ### Tasks
 
@@ -175,13 +170,12 @@ npx tsx src/index.ts --clear-cache
 | 5.6 | Implement `POST /api/cache/clear` endpoint | Call `AudioManager.clearCache()`. Return `{ success, message }`. | 5 min |
 | 5.7 | Implement `GET /api/output/:filename` endpoint | Serve MP3 file from `output/` directory. Return 404 if not found. | 10 min |
 | 5.8 | Create frontend React app scaffolding | `npm create vite@latest frontend -- --template react-ts`. Install Tailwind CSS. Configure tsconfig and vite aliases for `@shared`. | 15 min |
-| 5.9 | Implement `AudioRecorder` component | Use browser `MediaRecorder` API. Request `getUserMedia` microphone permission. Capture `audio/webm;codec=opus` Blobs. Emit `onRecordingComplete(blob)` callback. Show recording timer. | 30 min |
+| 5.9 | -
 | 5.10 | Implement `TopicInput` component | Dropdown/autocomplete listing 7 topics + "General News". Emit `onTopicChange(topic)` callback. Default to empty string. | 15 min |
-| 5.11 | Implement `StatusTracker` component | Display live pipeline status with 5 states: `Recording → Transcribing → Fetching News → Synthesizing → Ready`. Each state has an icon and label. Accept `status` prop and update via parent state. | 20 min |
+| 5.11 | Implement `StatusTracker` component | Display live pipeline status with states: `Transcribing → Fetching News → Synthesizing → Ready`. Each state has an icon and label. Accept `status` prop and update via parent state. | 20 min |
 | 5.12 | Implement `PodcastPlayer` component | HTML5 `<audio>` element with native controls. Accept `audioUrl` prop. Display episode metadata (duration, credits, cache stats) received from `PodcastOutput`. | 15 min |
-| 5.13 | Implement `App` component + API client | Orchestrate: TopicInput → AudioRecorder → StatusTracker → PodcastPlayer. Create `frontend/src/services/api.ts` with `transcribeAudio()`, `generatePodcast()`, `clearCache()` functions. Manage state transitions for StatusTracker. | 30 min |
-| 5.14 | Add backend `recorder.ts` isolation guard | Verify `recorder.ts` is never imported into frontend. Add a comment at the top of `backend/src/utils/recorder.ts` documenting it is backend-only. Add an import-boundary check to the verification checklist. | 5 min |
-| 5.15 | Add "Clear Cache" button to web UI | Wire up to `POST /api/cache/clear`. Show success/failure toast. | 10 min |
+| 5.13 | Implement `App` component + API client | Orchestrate: TopicInput → StatusTracker → PodcastPlayer. Create `frontend/src/services/api.ts` with `transcribeAudio()`, `generatePodcast()`, `clearCache()` functions. Manage state transitions for StatusTracker. | 30 min |
+| 5.14 | Add "Clear Cache" button to web UI | Wire up to `POST /api/cache/clear`. Show success/failure toast. | 10 min |
 
 ### Verification
 
@@ -189,10 +183,8 @@ npx tsx src/index.ts --clear-cache
 - `npm run dev:server` starts the Express server on port 4000; `curl http://localhost:4000/api/cache/clear` returns `{ success: true }`.
 - `npm run dev` starts the Vite dev server on port 5173; the React app loads in the browser.
 - `POST /api/generate-podcast` with `{ "topic": "technology", "source": "text" }` returns a `PodcastOutput` with `audioUrl` and `GET /api/output/{filename}` serves the MP3.
-- Clicking "Record" in `AudioRecorder` requests microphone permission, records audio, and sends it to `POST /api/transcribe` which returns a recognized topic.
-- `StatusTracker` shows the full state sequence (`Recording → Transcribing → Fetching News → Synthesizing → Ready`) during a voice-driven generation.
+- `StatusTracker` shows the full state sequence (`Transcribing → Fetching News → Synthesizing → Ready`) during a voice-driven generation.
 - `PodcastPlayer` plays the generated MP3 in-browser.
-- `grep -r "recorder" frontend/src/` returns zero matches (recorder.ts is backend-only).
 - The deprecated CLI (`npx tsx src/cli.ts --topic technology`) still works and produces identical output.
 - Running the same topic twice on the web shows cache hits and 0 credits consumed.
 
@@ -202,7 +194,7 @@ npx tsx src/index.ts --clear-cache
 - `backend/src/server.ts` — HTTP server entry point
 - `backend/src/cli.ts` — Deprecated CLI entry point (archived)
 - `frontend/` — React + Vite + TypeScript + Tailwind CSS web application
-- `frontend/src/components/` — `AudioRecorder`, `TopicInput`, `StatusTracker`, `PodcastPlayer`
+- `frontend/src/components/` — `TopicInput`, `StatusTracker`, `PodcastPlayer`
 - `frontend/src/services/api.ts` — API client
 - `frontend/src/App.tsx` — Root component with state management
 - `shared/types/index.ts` — Canonical data contracts shared between frontend and backend
@@ -238,7 +230,6 @@ npx tsx src/index.ts --clear-cache
 - NewsPanel renders articles in both REST and WebSocket modes.
 - `GET /api/history` returns JSON array of past generations with all schema fields.
 - HistorySection renders expandable cards with embedded audio players.
-- `grep -r "recorder" frontend/src/` returns zero matches (recorder.ts is backend-only).
 - No ElevenLabs API calls consumed during development (tsc-only verification).
 
 ### Deliverables
@@ -312,14 +303,13 @@ Milestone 5: Web GUI & Backend API Routes
   ├── 5.6 POST /api/cache/clear
   ├── 5.7 GET /api/output/:filename (MP3 serving)
   ├── 5.8 Frontend React + Vite + Tailwind scaffolding
-  ├── 5.9 AudioRecorder component (MediaRecorder API)
+  ├── 5.9 -
   ├── 5.10 TopicInput component
   ├── 5.11 StatusTracker component
   ├── 5.12 PodcastPlayer component
   ├── 5.13 App component + API client
-  ├── 5.14 recorder.ts backend-only isolation guard
-  ├── 5.15 Clear Cache button in web UI
-   └── Verification: Web app end-to-end with voice recording + playback
+  ├── 5.14 Clear Cache button in web UI
+   └── Verification: Web app end-to-end with voice + playback
 
     ▼
 Milestone 6: WebSocket Real-Time Streaming + History Log
@@ -348,18 +338,13 @@ Milestone 6: WebSocket Real-Time Streaming + History Log
 |------|-----------|--------|------------|
 | ElevenLabs API rate limits | Medium | High | Cache aggressively; each unique text is synthesized only once. |
 | ffmpeg not found on system | Low | High | Use `ffmpeg-static` which bundles the binary. |
-| sox not found on system | Low | Medium | Required for `--record` flag (CLI legacy). Install via `brew install sox` (macOS) or `sudo apt install sox` (Linux). The web app does not require sox. |
-| No audio input device | Low | Medium | The `--record` flow performs a pre-flight check and provides actionable error if no microphone is detected. The web app checks `MediaRecorder.isTypeSupported`. |
 | STT transcription accuracy | Medium | Medium | Use `scribe_v1` (highest accuracy); provide topic selection as fallback. |
 | Audio stitching artifacts | Low | Medium | Use 0.5s silence between segments to mask transitions. |
 | Cache directory permissions | Low | Low | Create directory with `mkdirSync({ recursive: true })`. |
 | TypeScript strict mode errors | Medium | Low | Use `skipLibCheck: true` and explicit type annotations everywhere. |
 | **CORS misconfiguration** | Medium | High | Configure CORS middleware to allow only the Vite dev server origin (`http://localhost:5173`) in development; same-origin in production. |
-| **Browser microphone permissions denied** | Medium | Medium | The `AudioRecorder` component handles `NotAllowedError` and `NotFoundError` with user-facing error messages. |
-| **MediaRecorder API unsupported in older browsers** | Low | Medium | Add a browser-compatibility check; gracefully degrade with a link to use the CLI `--voice` flag instead. |
-| **Audio upload size exceeds server limits** | Low | Medium | Set `multer` limits (`limits: { fileSize: 10 * 1024 * 1024 }` for 10MB max). Recordings are short (<30 seconds). |
+| **Audio upload size exceeds server limits** | Low | Medium | Set `multer` limits (`limits: { fileSize: 10 * 1024 * 1024 }` for 10MB max). Audios are short (<30 seconds). |
 | **API key accidentally exposed in frontend bundle** | High | Critical | The API key is loaded from `.env` only in `backend/src/config/env.ts`. A grep check verifies no `@elevenlabs/elevenlabs-js` import exists in `frontend/src/`. |
-| **recorder.ts accidentally imported into frontend** | High | Critical | The `recorder.ts` module imports `node-record-lpcm16-ts` which breaks browser builds. Verification includes `grep -r "recorder" frontend/src/` which must return zero matches. |
 
 ---
 
@@ -372,11 +357,9 @@ Since this is a PoC, testing will be lightweight:
 3. **Character limit test:** Pass a 300-character string to `ScriptBuilder`, verify it is truncated to <250 chars.
 4. **End-to-end CLI smoke test:** Run `npx ts-node src/index.ts` and verify an MP3 file is produced in `output/`.
 5. **STT smoke test:** Run `npx tsx src/index.ts --voice sample.wav` and verify topic extraction.
-6. **Live recording smoke test:** Run `npx tsx src/index.ts --record`, speak a topic, press ENTER, and verify transcription + podcast generation. (Requires sox and a connected microphone.)
 7. **API endpoint test:** `curl -X POST http://localhost:4000/api/generate-podcast -H "Content-Type: application/json" -d '{"topic":"technology","source":"text"}'` and verify a `PodcastOutput` JSON response with `audioUrl`.
 8. **Frontend smoke test:** Start `npm run dev`, open browser to `http://localhost:5173`, verify all four components render and the "Generate" flow produces playable audio.
-9. **Import boundary test:** `grep -r "recorder" frontend/src/` returns zero matches, confirming `recorder.ts` is not imported into the frontend.
-10. **Cache cross-compatibility test:** Run `npx tsx src/cli.ts --topic technology` (CLI), then generate the same topic via the web UI; verify cache hits on the second run (0 credits).
+9. **Cache cross-compatibility test:** Run `npx tsx src/cli.ts --topic technology` (CLI), then generate the same topic via the web UI; verify cache hits on the second run (0 credits).
 
 ---
 

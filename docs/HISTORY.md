@@ -16,7 +16,6 @@
 | 2026-08-10 | CLI Era | Project Initialization | Initial project structure created (`package.json`, `tsconfig.json`, `.env`). |
 | 2026-08-12 | CLI Era | SDD v1.0 & Development Plan v1.0 | Documentation frozen at CLI architecture. |
 | 2026-08-13 | CLI Era | Core Functionality Complete | AudioManager, ScriptBuilder, MockNewsProvider, VoiceCommandParser, CLI pipeline. |
-| 2026-08-14 | CLI Era | Live Recording Feature | `recorder.ts` with sox backend; `--record` flag; manual fixes for stream error handling and pipeline flushing. |
 | 2026-08-16 | Transition | CLI → Web App | Architecture transition: React frontend + Express backend. CLI preserved as deprecated legacy. SDD & Development Plan updated to v2.0. |
 | 2026-08-16 | Web App | WebSocket Real-Time Streaming + History Log | Added WebSocket mode with live progress streaming, embedded news article display panel, and persistent history log with SQLite storage. |
 
@@ -37,7 +36,7 @@ The project was initiated as a **Proof of Concept (PoC)** to validate:
 
 ### 1.2 Initial Implementation
 
-The project was bootstrapped with `npm init -y`, configured for ESM (`"type": "module"`) with NodeNext module resolution and strict TypeScript. All dependencies were installed in a single monorepo root: `@elevenlabs/elevenlabs-js`, `dotenv`, `ffmpeg-static`, `fluent-ffmpeg`, `node-record-lpcm16-ts`, and `tsx` for runtime execution.
+The project was bootstrapped with `npm init -y`, configured for ESM (`"type": "module"`) with NodeNext module resolution and strict TypeScript. All dependencies were installed in a single monorepo root: `@elevenlabs/elevenlabs-js`, `dotenv`, `ffmpeg-static`, `fluent-ffmpeg`, and `tsx` for runtime execution.
 
 ---
 
@@ -93,10 +92,7 @@ The original CLI architecture was organized into **three layers** with unidirect
 
 ### 2.1 Command Layer
 
-- **`index.ts`** — CLI entry point. Parsed arguments (`--topic`, `--voice`, `--record`, `--clear-cache`, `--help`) and dispatched to `NewsPodcaster`.
-- **`recorder.ts`** — Captured live microphone input via `node-record-lpcm16-ts` with a sox backend. This file contained two critical manual fixes:
-  - **`Promise.race([inputPromise, streamErrorPromise])`** — Raced the ENTER-keypress resolver against a SoX stream error listener so that recorder startup failures surfaced immediately instead of blocking on stdin.
-  - **`pipeline(stream, fileStream)`** — Used Node.js `stream/promises` `pipeline()` to ensure the recording stream was fully flushed to disk before the file was closed, preventing truncated WAV output.
+- **`index.ts`** — CLI entry point. Parsed arguments (`--topic`, `--voice`, `--clear-cache`, `--help`) and dispatched to `NewsPodcaster`.
 - **`voiceCommandParser.ts`** — Extracted a topic keyword from the transcribed text using prefix matching (e.g., "tech" → "technology").
 
 ### 2.2 Curation Layer
@@ -135,7 +131,6 @@ elevenlabs-POC/
 │   │   └── index.ts
 │   ├── utils/
 │   │   ├── functions.ts
-│   │   ├── recorder.ts
 │   │   └── voiceCommandParser.ts
 │   └── index.ts
 ├── audio_cache/
@@ -158,7 +153,6 @@ The CLI was invoked via `npx tsx src/index.ts` with the following flags:
 |------|-------------|----------------|
 | `--topic <topic>` | Filter news by topic keyword (e.g., `technology`, `sports`, `politics`, `business`, `science`, `entertainment`, `health`). | Parsed in `index.ts`, passed to `NewsPodcaster.generatePodcast({ topic })`. |
 | `--voice <path>` | Transcribe a pre-recorded audio file, extract the topic from the transcript, and generate a podcast for that topic. | `AudioManager.transcribeAudio()` → `VoiceCommandParser.parse()` → `NewsPodcaster.generatePodcast({ topic, source: "voice" })`. |
-| `--record`, `-r` | Record live audio from the terminal microphone via sox, transcribe, extract topic, and generate a podcast. | `recordVoiceCommand()` in `recorder.ts` → temp WAV → `processVoiceRequest()`. |
 | `--clear-cache` | Delete all files from `audio_cache/`. | `AudioManager.clearCache()`. |
 | `--help`, `-h` | Display usage information. | Static help text in `index.ts`. |
 
@@ -173,9 +167,6 @@ npx tsx src/index.ts --topic technology
 
 # Generate a podcast from a pre-recorded voice command
 npx tsx src/index.ts --voice audio/sample-command.wav
-
-# Record your voice live from the terminal microphone
-npx tsx src/index.ts --record
 
 # Clear the audio cache
 npx tsx src/index.ts --clear-cache
@@ -194,15 +185,15 @@ The CLI required users to:
 - Interact with a terminal interface using flags and ENTER keypresses.
 - Navigate the file system to find generated MP3 files.
 
-A web application replaces this with an intuitive, visual interface: a topic dropdown, a record button with live microphone feedback, a real-time status tracker, and an in-browser audio player — all accessible from a single URL.
+A web application replaces this with an intuitive, visual interface: a topic dropdown, a real-time status tracker, and an in-browser audio player — all accessible from a single URL.
 
 ### 4.2 Visual Feedback
 
-The CLI provided only text-based log output (`[INFO]`, `[WARNING]`, `[ERROR]`). The web app's `StatusTracker` component provides **real-time visual feedback** with a clear state machine: `Recording → Transcribing → Fetching News → Synthesizing → Ready`. Users can see exactly where the pipeline is at every moment.
+The CLI provided only text-based log output (`[INFO]`, `[WARNING]`, `[ERROR]`). The web app's `StatusTracker` component provides **real-time visual feedback** with a clear state machine: `Transcribing → Fetching News → Synthesizing → Ready`. Users can see exactly where the pipeline is at every moment.
 
 ### 4.3 Accessibility
 
-Voice recording via `node-record-lpcm16-ts` + sox was platform-dependent (`rec` on macOS, `arecord` on Linux) and required system-level microphone permissions. The browser's `MediaRecorder` API is cross-platform, requires only in-browser permission prompts, and eliminates the sox dependency entirely.
+*-*
 
 ### 4.4 Sharing and Portability
 
@@ -218,11 +209,11 @@ The architecture evolved from a **three-layer CLI** to a **five-layer client/ser
 
 | New Layer | Responsibility | Key Components |
 |-----------|----------------|----------------|
-| **Presentation Layer (React)** | Browser-based UI for interaction | `AudioRecorder`, `TopicInput`, `StatusTracker`, `PodcastPlayer`, `App` |
+| **Presentation Layer (React)** | Browser-based UI for interaction | `TopicInput`, `StatusTracker`, `PodcastPlayer`, `App` |
 | **API Server Layer (Express)** | HTTP request/response bridge | `/api/transcribe`, `/api/generate-podcast`, `/api/cache/clear`, `GET /api/output/:filename` |
 | **Service Layer (Existing)** | Business logic — unchanged | `NewsPodcaster`, `ScriptBuilder`, `NewsProvider`, `VoiceCommandParser` |
 | **Audio & Cache Layer** | TTS/STT + cache + stitching — unchanged | `AudioManager`, `audio_cache/`, `output/` |
-| **CLI Legacy Layer** | Deprecated, archived | `cli.ts`, `recorder.ts` (backend-only) |
+| **CLI Legacy Layer** | Deprecated, archived | `cli.ts` |
 
 ### 5.2 Data Flow (Web Request Cycle)
 
@@ -250,13 +241,11 @@ Browser                Express Backend                 ElevenLabs APIs
 
 ### 5.3 Architectural Decisions
 
-1. **Backend-only `recorder.ts`:** The `recorder.ts` module (with its `node-record-lpcm16-ts` dependency and sox backend) was moved to the backend and explicitly **excluded** from the frontend bundle. The web app uses the browser's native `MediaRecorder` API for recording instead.
+1. **Shared types:** Data contracts (`NewsItem`, `ScriptBlock`, `PodcastScript`, `PodcastOutput`, `VoiceCommand`, etc.) were extracted to a `shared/types/` directory, imported by both frontend and backend via Vite path aliases.
 
-2. **Shared types:** Data contracts (`NewsItem`, `ScriptBlock`, `PodcastScript`, `PodcastOutput`, `VoiceCommand`, etc.) were extracted to a `shared/types/` directory, imported by both frontend and backend via Vite path aliases.
+2. **Express server:** A new Express server (`backend/src/server.ts`) was added to host the HTTP endpoints. It instantiates `NewsPodcaster` once at startup and delegates all requests to it.
 
-3. **Express server:** A new Express server (`backend/src/server.ts`) was added to host the HTTP endpoints. It instantiates `NewsPodcaster` once at startup and delegates all requests to it.
-
-4. **CLI archival:** The original `src/index.ts` was renamed to `backend/src/cli.ts` and marked as deprecated. It remains fully functional but is no longer the primary entry point.
+3. **CLI archival:** The original `src/index.ts` was renamed to `backend/src/cli.ts` and marked as deprecated. It remains fully functional but is no longer the primary entry point.
 
 ---
 
@@ -307,17 +296,6 @@ The following CLI-era artifacts were preserved as deprecated, archived component
 - **Original path:** `src/index.ts`
 - **New path:** `backend/src/cli.ts`
 - **Status:** Deprecated. Still functional via `npx tsx src/cli.ts` but no new features will be added.
-- **Note:** The `--record` flag's `recorder.ts` dependency on `node-record-lpcm16-ts` and sox is preserved for those who prefer the CLI workflow.
-
-### 7.2 `recorder.ts` (Server-Side Audio Recording)
-
-- **Original path:** `src/utils/recorder.ts`
-- **New path:** `backend/src/utils/recorder.ts`
-- **Status:** Available but not used by the web app. The web app uses the browser's `MediaRecorder` API instead.
-- **Manual fixes preserved:**
-  - `Promise.race([inputPromise, streamErrorPromise])` — SoX stream error handling.
-  - `pipeline(stream, fileStream)` — Proper stream flushing to prevent truncation.
-- **Critical constraint:** This module imports `node-record-lpcm16-ts`, a native Node.js module that is **not browser-compatible**. It must never be imported into the React frontend.
 
 ### 7.3 Original File Structure
 
@@ -343,7 +321,6 @@ The original flat `src/` structure was reorganized into:
 |----------|---------------|-------|
 | `--topic <topic>` | `TopicInput` component (dropdown) | All 7 topics available in the dropdown. |
 | `--voice <path>` | `AudioRecorder` component | Browser recording replaces file input. For file-based transcription, a future file-upload feature could be added. |
-| `--record` / `-r` | `AudioRecorder` component | Browser `MediaRecorder` API replaces `node-record-lpcm16-ts` + sox. |
 | `--clear-cache` | "Clear Cache" button in web UI | Calls `POST /api/cache/clear`. |
 | `--help` | N/A | Web UI is self-documenting via on-screen instructions. |
 
