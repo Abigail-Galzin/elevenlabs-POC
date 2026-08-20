@@ -12,7 +12,9 @@
     "build": "tsc -p backend/tsconfig.json",
     "start": "node backend/dist/cli.js",
     "typecheck": "tsc --noEmit -p backend/tsconfig.json",
-    "lint": "tsc --noEmit -p backend/tsconfig.json"
+    "lint": "tsc --noEmit -p backend/tsconfig.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "postbuild:cjs": "node -e \"require('fs').writeFileSync('dist-cjs/package.json', JSON.stringify({type:'commonjs'}))\""
   },
   "keywords": [
     "elevenlabs",

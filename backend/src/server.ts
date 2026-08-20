@@ -8,18 +8,15 @@ import { createServer } from "node:http";
 
 import { ENV } from "./config/env.js";
 import { AudioManager } from "./audioManager.js";
-import { NewsPodcaster } from "./core/newsPodcaster.js";
 import { log } from "./utils/functions.js";
 import { VoiceCommandParser } from "./utils/voiceCommandParser.js";
-import { CREDITS_PER_CHAR } from "./types/index.js";
 import { attachWebSocket } from "./websocket.js";
 import {
-  logGeneration,
   getHistory,
   closeHistoryDb,
 } from "./services/historyService.js";
 
-import type { PodcastOutput, VoiceCommand } from "./types/index.js";
+import type { VoiceCommand } from "./types/index.js";
 import type { Request, Response, NextFunction } from "express";
 
 const app = express();
@@ -53,8 +50,6 @@ const upload = multer({
 /* ------------------------------------------------------------------ */
 log("INFO", "Initializing AudioManager...");
 const audioManager = new AudioManager(ENV.ELEVENLABS_API_KEY);
-log("INFO", "Initializing NewsPodcaster (singleton)...");
-const newsPodcaster = new NewsPodcaster(ENV.ELEVENLABS_API_KEY);
 
 /* ------------------------------------------------------------------ */
 /* POST /api/transcribe — STT via scribe_v1                             */
@@ -86,71 +81,7 @@ app.post(
       log("ERROR", `Transcription failed: ${message}`);
       return res.status(500).json({ error: "Transcription failed." });
     } finally {
-      try {
-        unlinkSync(filePath);
-      } catch {
-        // Non-fatal: temp file may already be gone.
-      }
-    }
-  }
-);
-
-/* ------------------------------------------------------------------ */
-/* POST /api/generate-podcast — full pipeline                          */
-/* ------------------------------------------------------------------ */
-app.post(
-  "/api/generate-podcast",
-  async (req: Request, res: Response) => {
-    const { topic, source } = req.body as { topic?: string; source?: string };
-
-    if (!source || (source !== "voice" && source !== "text")) {
-      return res.status(400).json({
-        error:
-          "Missing or invalid required field: 'source' (expected 'voice' or 'text').",
-      });
-    }
-
-    try {
-      log(
-        "INFO",
-        `Generating podcast (source: ${source}, topic: ${topic || "(general)"})...`
-      );
-
-      const output: PodcastOutput = await newsPodcaster.generatePodcast({
-        topic,
-        source,
-      });
-
-      const filename = basename(output.outputPath);
-      const audioUrl = `/api/output/${filename}`;
-
-      const estimatedCredits = output.creditsConsumed + output.creditsSaved;
-      const totalChars = Math.round(estimatedCredits / CREDITS_PER_CHAR);
-
-      // Log to history (non-blocking — don't fail the response if logging errors)
-      try {
-      logGeneration({
-        pipeline_type: "API",
-        feature_type: source === "voice" ? "Speech-to-Text" : "Text-to-Speech",
-        input_data: topic || "",
-        output,
-        script: output.script,
-      });
-      } catch (logError) {
-        const msg = logError instanceof Error ? logError.message : String(logError);
-        log("WARNING", `History logging failed (non-blocking): ${msg}`);
-      }
-
-      return res.json({
-        ...output,
-        audioUrl,
-        estimatedCredits,
-        totalChars,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      log("ERROR", `Podcast generation failed: ${message}`);
-      return res.status(500).json({ error: "Podcast generation failed." });
+      unlinkSync(filePath);
     }
   }
 );

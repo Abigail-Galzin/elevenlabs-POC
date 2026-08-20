@@ -17,8 +17,12 @@ import { tmpdir } from "node:os";
 import ffmpeg from "fluent-ffmpeg";
 
 // ffmpeg-static ships as CommonJS without an `exports` field, so we load it
-// via createRequire for reliable resolution under NodeNext/ESM.
-const cjsRequire = createRequire(import.meta.url);
+// via native require (CJS builds) or createRequire (ESM). Avoiding import.meta
+// here so the same source compiles cleanly under both module systems.
+const cjsRequire: (id: string) => unknown =
+  typeof require !== "undefined"
+    ? require
+    : createRequire(process.cwd() + "/package.json");
 const ffmpegStaticPath: unknown = cjsRequire("ffmpeg-static");
 if (typeof ffmpegStaticPath === "string") {
   ffmpeg.setFfmpegPath(ffmpegStaticPath);

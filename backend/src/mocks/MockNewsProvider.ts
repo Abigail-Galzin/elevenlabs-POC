@@ -12,7 +12,6 @@ export class MockNewsProvider implements NewsProvider {
 
     private readonly allNews: NewsItem[] = [
         // ----- Technology -----
-        /*
         {
             headline: "Google unveils new AI chip for data centers",
             summary: "Tensor G3 processor delivers 40% faster inference for enterprise AI workloads.",
@@ -52,10 +51,9 @@ export class MockNewsProvider implements NewsProvider {
             url: "https://techreview.com/quantum-error-correction",
             topic: "technology",
             publishedAt: this.today,
-        },*/
+        },
 
         // ----- Sports -----
-        /*
         {
             headline: "Local marathon runner breaks 3-hour barrier",
             summary: "Sarah Chen completed the city marathon in 2 hours 58 minutes 45 seconds.",
@@ -121,8 +119,8 @@ export class MockNewsProvider implements NewsProvider {
             url: "https://reuters.com/cybersecurity-bill",
             topic: "politics",
             publishedAt: this.today,
-        },*/
-/*
+        },
+
         // ----- Business -----
         {
             headline: "Stock market hits record high on Fed rate signal",
@@ -131,7 +129,7 @@ export class MockNewsProvider implements NewsProvider {
             url: "https://bloomberg.com/stock-market-record",
             topic: "business",
             publishedAt: this.today,
-        },*/
+        },
         {
             headline: "AI startup raises $150M in Series C funding",
             summary: "Anthropic secures new investment to accelerate Claude development.",
@@ -139,7 +137,7 @@ export class MockNewsProvider implements NewsProvider {
             url: "https://techcrunch.com/anthropic-funding",
             topic: "business",
             publishedAt: this.today,
-        },/*
+        },
         {
             headline: "Federal Reserve holds interest rates steady",
             summary: "Central bank maintains rates at 5.25 to 5.50 percent for the quarter.",
@@ -147,7 +145,7 @@ export class MockNewsProvider implements NewsProvider {
             url: "https://bloomberg.com/fed-rates-steady",
             topic: "business",
             publishedAt: this.today,
-        },*/
+        },
         {
             headline: "Tech giant reports 40% revenue growth in cloud segment",
             summary: "Cloud computing division exceeds analyst expectations for Q3.",
@@ -156,7 +154,7 @@ export class MockNewsProvider implements NewsProvider {
             topic: "business",
             publishedAt: this.today,
         },
-/*
+
         // ----- Science -----
         {
             headline: "JWST discovers water vapor on potentially habitable exoplanet",
@@ -173,7 +171,7 @@ export class MockNewsProvider implements NewsProvider {
             url: "https://science.org/crispr-gene-therapy",
             topic: "science",
             publishedAt: this.today,
-        },*/
+        },
         {
             headline: "Deep-sea explorers discover new species in Mariana Trench",
             summary: "Scientists identify five previously unknown amphipod species.",
@@ -181,7 +179,7 @@ export class MockNewsProvider implements NewsProvider {
             url: "https://natgeo.com/mariana-trench-species",
             topic: "science",
             publishedAt: this.today,
-        },/*
+        },
         {
             headline: "Fusion reactor achieves net energy gain for 24 hours",
             summary: "Experimental tokamak sustains fusion reaction at record duration.",
@@ -257,7 +255,7 @@ export class MockNewsProvider implements NewsProvider {
             url: "https://bbc.com/vitamin-d-immunity-study",
             topic: "health",
             publishedAt: this.today,
-        },*/
+        },
     ];
 
     /**
@@ -267,16 +265,15 @@ export class MockNewsProvider implements NewsProvider {
      * @returns Shuffled list of news items, up to `limit` in length.
      */
     async fetchNews(topic?: string, limit: number = MAX_NEWS_ITEMS): Promise<NewsItem[]> {
-        /*let items: NewsItem[];
+        let items: NewsItem[];
 
         if (topic && topic.length > 0) {
             const filtered = this.allNews.filter((item) => item.topic === topic);
             items = filtered.length > 0 ? filtered : this.allNews;
         } else {
             items = this.allNews;
-        }*/
+        }
 
-        //return shuffleArray(items).slice(0, limit);
-        return this.allNews;
+        return shuffleArray(items).slice(0, limit);
     }
 }

@@ -6,7 +6,15 @@ import { basename, join } from "node:path";
 import { type PodcastOutput, type PodcastScript, type NewsItem } from "../types/index.js";
 import { log } from "../utils/functions.js";
 
-const DATA_DIR = join(import.meta.dirname, "..", "..", "data");
+const DATA_DIR = join(
+  typeof __dirname !== "undefined"
+    ? __dirname
+    : // @ts-ignore — import.meta.dirname is ESM-only; dead branch under CJS builds
+      import.meta.dirname,
+  "..",
+  "..",
+  "data"
+);
 const DB_PATH = join(DATA_DIR, "history.db");
 
 /**

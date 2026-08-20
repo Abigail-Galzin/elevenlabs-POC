@@ -1,5 +1,5 @@
 import { type Server as HttpServer } from "node:http";
-import { WebSocketServer, type WebSocket } from "ws";
+import { WebSocketServer, type WebSocket, type RawData } from "ws";
 
 import { AudioManager } from "./audioManager.js";
 import { MockNewsProvider } from "./mocks/MockNewsProvider.js";
@@ -28,7 +28,7 @@ export function attachWebSocket(
       new MockNewsProvider()
     );
 
-    ws.on("message", (data: WebSocket.RawData) => {
+    ws.on("message", (data: RawData) => {
       let msg: unknown;
       try {
         msg = JSON.parse(data.toString());
